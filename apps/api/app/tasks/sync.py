@@ -32,10 +32,14 @@ async def run_sync() -> None:
             decode_responses=True,
         )
 
-        # Fetch all datasets (validates connectivity)
+        # Fetch all datasets using corrected URLs (Phase 2 verified paths)
+        # mk_individual + mk_individual_factions
         await fetch_all_mk_data()
+        # view_vote_rslts_hdr_approved + view_vote_mk_individual
         await fetch_vote_data()
+        # kns_bill + kns_billinitiator
         await fetch_bills_data()
+        # factions (separate from mk_individual_factions)
         await fetch_csv("factions")
 
         # Invalidate all cached data so next request gets fresh results

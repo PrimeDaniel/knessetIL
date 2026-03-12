@@ -1,6 +1,7 @@
 // ============================================================
 // Bill-related types
-// Mirrors: laws.csv (60,088 records) + law_names.csv + law_initiators.csv
+// Mirrors: kns_bill.csv (60,088 rows, PascalCase source) + kns_billinitiator.csv
+// Schema verified from oknesset datapackage.json 2026-03-12
 // ============================================================
 
 export type BillStatus =

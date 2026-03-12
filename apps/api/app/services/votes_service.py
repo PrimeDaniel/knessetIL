@@ -1,6 +1,18 @@
 """
-Votes service: queries view_vote_rslts_hdr_approved + view_vote_mk_individual.
-Builds VoteResult, VoteDetail (with per-party breakdown and per-MK records).
+Votes service -- corrected for real schema (verified 2026-03-12).
+
+Real view_vote_rslts_hdr_approved.csv columns:
+  id, knesset_num, session_id, sess_item_nbr, sess_item_id, sess_item_dscr,
+  vote_item_id, vote_item_dscr, vote_date, vote_time, is_elctrnc_vote, vote_type,
+  is_accepted (INTEGER 0/1, NOT boolean), total_for, total_against, total_abstain,
+  vote_stat, session_num, vote_nbr_in_sess, reason, modifier, remark
+
+Real view_vote_mk_individual.csv (1,111 rows):
+  vip_id, mk_individual_id, mk_individual_name, mk_individual_name_eng,
+  mk_individual_first_name, mk_individual_first_name_eng
+  -- This is a LOOKUP TABLE only (MK identifier mapping).
+  -- Per-MK vote decisions (For/Against/Abstain) are NOT in the public CSV data.
+  -- Party breakdown per vote is therefore NOT computable from CSVs.
 """
 from __future__ import annotations
 
@@ -13,7 +25,7 @@ import pandas as pd
 import redis.asyncio as aioredis
 
 from app.services import cache_service as cache
-from app.services.oknesset_client import fetch_vote_data, fetch_csv
+from app.services.oknesset_client import fetch_vote_data
 
 logger = logging.getLogger(__name__)
 
@@ -23,43 +35,41 @@ def _now_iso() -> str:
 
 
 def _safe(val: Any) -> Any:
-    if pd.isna(val):
-        return None
+    try:
+        if pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
     return val
 
 
 def _row_to_vote(row: pd.Series) -> dict:
     return {
-        "id": int(_safe(row.get("id")) or row.get("rowid", 0)),
-        "knesset_num": int(_safe(row.get("knesset_num")) or 0),
-        "session_id": int(_safe(row.get("session_id")) or 0),
-        "vote_date": str(_safe(row.get("vote_date", ""))),
-        "vote_time": str(_safe(row.get("vote_time"))) if _safe(row.get("vote_time")) else None,
-        "vote_item_id": int(_safe(row.get("vote_item_id")) or 0),
-        "vote_item_dscr": _safe(row.get("vote_item_dscr", "")),
-        "vote_type": _safe(row.get("vote_type")),
-        "is_accepted": bool(_safe(row.get("is_accepted", False))),
-        "total_for": int(_safe(row.get("total_for")) or 0),
-        "total_against": int(_safe(row.get("total_against")) or 0),
-        "total_abstain": int(_safe(row.get("total_abstain")) or 0),
-        "total_absent": int(_safe(row.get("total_absent")) or 0),
+        "id":              int(_safe(row.get("id")) or 0),
+        "knesset_num":     int(_safe(row.get("knesset_num")) or 0),
+        "session_id":      int(_safe(row.get("session_id")) or 0),
+        "vote_date":       str(_safe(row.get("vote_date", ""))),
+        "vote_time":       _safe(row.get("vote_time")),
+        "vote_item_id":    int(_safe(row.get("vote_item_id")) or 0),
+        "vote_item_dscr":  _safe(row.get("vote_item_dscr", "")),
+        "sess_item_dscr":  _safe(row.get("sess_item_dscr", "")),
+        "vote_type":       int(_safe(row.get("vote_type")) or 0),
+        # is_accepted is INTEGER 0/1 in CSV, cast to bool
+        "is_accepted":     bool(int(_safe(row.get("is_accepted")) or 0)),
+        "total_for":       int(_safe(row.get("total_for")) or 0),
+        "total_against":   int(_safe(row.get("total_against")) or 0),
+        "total_abstain":   int(_safe(row.get("total_abstain")) or 0),
+        "total_absent":    0,  # not in CSV; computed as 120 - for - against - abstain if needed
     }
 
 
-async def list_votes(
-    redis: aioredis.Redis,
-    page: int = 1,
-    limit: int = 20,
-    knesset_num: int | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    is_accepted: bool | None = None,
-) -> dict:
-    cache_key = cache.make_list_key(
-        "votes:list", page=page, limit=limit,
-        knesset_num=knesset_num, date_from=date_from, date_to=date_to,
-        is_accepted=is_accepted,
-    )
+async def list_votes(redis: aioredis.Redis, page: int = 1, limit: int = 20,
+                     knesset_num: int | None = None,
+                     date_from: str | None = None, date_to: str | None = None,
+                     is_accepted: bool | None = None) -> dict:
+    cache_key = cache.make_list_key("votes:list", page=page, limit=limit,
+                                    knesset_num=knesset_num, date_from=date_from,
+                                    date_to=date_to, is_accepted=is_accepted)
 
     async def factory() -> dict:
         frames = await fetch_vote_data()
@@ -74,20 +84,17 @@ async def list_votes(
         if date_to and "vote_date" in df.columns:
             df = df[df["vote_date"] <= date_to]
         if is_accepted is not None and "is_accepted" in df.columns:
-            df = df[df["is_accepted"] == is_accepted]
+            target = 1 if is_accepted else 0
+            df = df[df["is_accepted"] == target]
 
-        # Sort by date descending
-        if "vote_date" in df.columns:
-            df = df.sort_values("vote_date", ascending=False)
+        df = df.sort_values("vote_date", ascending=False)
 
         total = len(df)
         total_pages = math.ceil(total / limit) if total else 1
-        offset = (page - 1) * limit
-        page_df = df.iloc[offset: offset + limit]
+        page_df = df.iloc[(page - 1) * limit: page * limit]
 
-        votes = [_row_to_vote(row) for _, row in page_df.iterrows()]
         return {
-            "data": votes,
+            "data": [_row_to_vote(row) for _, row in page_df.iterrows()],
             "pagination": {"page": page, "limit": limit, "total": total, "total_pages": total_pages},
             "cached_at": _now_iso(),
         }
@@ -100,55 +107,19 @@ async def get_vote_detail(vote_id: int, redis: aioredis.Redis) -> dict | None:
 
     async def factory() -> dict | None:
         frames = await fetch_vote_data()
-        hdr_df = frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
-        mk_df = frames.get("view_vote_mk_individual", pd.DataFrame())
-
-        if hdr_df.empty:
+        df = frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
+        if df.empty:
             return None
 
-        id_col = "id" if "id" in hdr_df.columns else hdr_df.columns[0]
-        rows = hdr_df[hdr_df[id_col] == vote_id]
+        rows = df[df["id"] == vote_id]
         if rows.empty:
             return None
 
         base = _row_to_vote(rows.iloc[0])
-
-        # Per-MK vote records
-        mk_votes: list[dict] = []
-        if not mk_df.empty and "vote_id" in mk_df.columns:
-            mv = mk_df[mk_df["vote_id"] == vote_id]
-            for _, mr in mv.iterrows():
-                mk_votes.append({
-                    "vote_id": vote_id,
-                    "mk_individual_id": int(_safe(mr.get("mk_individual_id")) or 0),
-                    "mk_name": _safe(mr.get("mk_individual_name", "")),
-                    "mk_name_eng": _safe(mr.get("mk_individual_name_eng", "")),
-                    "faction_id": int(_safe(mr.get("faction_id"))) if _safe(mr.get("faction_id")) else None,
-                    "faction_name": _safe(mr.get("faction_name")),
-                    "decision": _safe(mr.get("vote_decision", "absent")),
-                    "vote_date": base["vote_date"],
-                    "vote_item_dscr": base["vote_item_dscr"],
-                })
-
-        # Per-party breakdown
-        party_breakdown: list[dict] = []
-        if mk_votes and "faction_id" in (mk_df.columns if not mk_df.empty else []):
-            mv_sub = mk_df[mk_df["vote_id"] == vote_id]
-            if not mv_sub.empty:
-                grouped = mv_sub.groupby("faction_id")
-                for fid, grp in grouped:
-                    fid_int = int(_safe(fid) or 0)
-                    fname = _safe(grp.iloc[0].get("faction_name", "")) if not grp.empty else ""
-                    party_breakdown.append({
-                        "faction_id": fid_int,
-                        "faction_name": fname,
-                        "for_count": int((grp.get("vote_decision", pd.Series()) == "for").sum()),
-                        "against_count": int((grp.get("vote_decision", pd.Series()) == "against").sum()),
-                        "abstain_count": int((grp.get("vote_decision", pd.Series()) == "abstain").sum()),
-                        "absent_count": int((grp.get("vote_decision", pd.Series()) == "absent").sum()),
-                        "total_members": len(grp),
-                    })
-
-        return {**base, "party_breakdown": party_breakdown, "mk_votes": mk_votes}
+        # Per-MK decisions and party breakdown not available in CSV data
+        base["party_breakdown"] = []
+        base["mk_votes"] = []
+        base["_note"] = "Per-MK vote decisions not available in public oknesset CSV data"
+        return base
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_VOTE_DETAIL, redis)

@@ -45,6 +45,8 @@ export interface MKProfile {
 }
 
 // Pre-computed stats for an MK (cached 12h)
+// NOTE: rebellion_rate and attendance_rate are null — per-MK vote decisions
+// are not available in the public oknesset CSV data (only aggregate totals exist).
 export interface MKStats {
   mk_individual_id: number;
   total_votes: number;
@@ -52,14 +54,11 @@ export interface MKStats {
   votes_against: number;
   votes_abstain: number;
   votes_absent: number;
-  // Computed: % of votes where MK voted against their faction's majority
-  rebellion_rate: number;   // 0–1 float
-  // Computed: % of sessions where MK participated
-  attendance_rate: number;  // 0–1 float
+  rebellion_rate: number | null;
+  attendance_rate: number | null;
   bills_proposed: number;
-  // Breakdown by current knesset term only
   current_term_votes: number;
-  current_term_rebellion_rate: number;
+  current_term_rebellion_rate: number | null;
 }
 
 export interface MKListParams {
