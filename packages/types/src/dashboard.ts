@@ -17,6 +17,8 @@ export interface DashboardStats {
   // Recent activity
   recent_votes: RecentVote[];
   recent_bills: RecentBill[];
+  // Monthly vote trend for chart (last 12 months)
+  vote_trend: Array<{ date: string; accepted: number; rejected: number }>;
   // Top stats
   most_rebellious_mks: Array<{
     mk_individual_id: number;

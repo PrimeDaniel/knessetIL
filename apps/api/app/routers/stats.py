@@ -72,6 +72,28 @@ async def get_dashboard(request: Request, redis: RedisDep):
                     "initiator_name": None,
                 })
 
+        # Monthly vote trend — last 12 months, grouped by YYYY-MM
+        vote_trend: list[dict] = []
+        if hdr_df is not None and "vote_date" in hdr_df.columns and "is_accepted" in hdr_df.columns:
+            trend_df = hdr_df[["vote_date", "is_accepted"]].copy()
+            trend_df["vote_date"] = pd.to_datetime(trend_df["vote_date"], errors="coerce")
+            trend_df = trend_df.dropna(subset=["vote_date"])
+            trend_df["month"] = trend_df["vote_date"].dt.to_period("M")
+            trend_df["is_accepted"] = pd.to_numeric(trend_df["is_accepted"], errors="coerce").fillna(0).astype(int)
+            monthly = (
+                trend_df.groupby("month")["is_accepted"]
+                .agg(accepted=lambda x: (x == 1).sum(), rejected=lambda x: (x == 0).sum())
+                .reset_index()
+                .sort_values("month")
+                .tail(12)
+            )
+            for _, row in monthly.iterrows():
+                vote_trend.append({
+                    "date":     str(row["month"]),
+                    "accepted": int(row["accepted"]),
+                    "rejected": int(row["rejected"]),
+                })
+
         return {
             "knesset_num": _CURRENT_KNESSET,
             "total_votes_this_knesset": total_votes,
@@ -83,6 +105,7 @@ async def get_dashboard(request: Request, redis: RedisDep):
             "total_factions": 0,
             "recent_votes": recent_votes,
             "recent_bills": recent_bills,
+            "vote_trend": vote_trend,
             "most_rebellious_mks": [],
             "cached_at": now,
         }

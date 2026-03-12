@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useDashboard } from "@/hooks/useParties";
 import { StatCard } from "@/components/shared/StatCard";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { VoteTrendLine } from "@/components/charts/VoteTrendLine";
 import { formatDateHe } from "@/lib/utils";
 import { CheckCircle2, XCircle } from "lucide-react";
 
@@ -52,6 +54,16 @@ export function HomeDashboard() {
         </div>
       </section>
 
+      {/* Vote trend chart */}
+      {data.vote_trend.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold mb-4">מגמת הצבעות לפי חודש</h2>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <VoteTrendLine data={data.vote_trend} />
+          </div>
+        </section>
+      )}
+
       {/* Recent votes */}
       <section>
         <h2 className="text-xl font-semibold mb-4">הצבעות אחרונות</h2>
@@ -93,7 +105,7 @@ export function HomeDashboard() {
         <h2 className="text-xl font-semibold mb-4">הצעות חוק אחרונות</h2>
         <div className="flex flex-col gap-3">
           {data.recent_bills.map((bill) => (
-            <a
+            <Link
               key={bill.bill_id}
               href={`/bills/${bill.bill_id}`}
               className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/30 transition-colors"
@@ -105,7 +117,7 @@ export function HomeDashboard() {
                   {bill.publication_date && ` · ${formatDateHe(bill.publication_date)}`}
                 </p>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </section>
