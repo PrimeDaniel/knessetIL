@@ -1,0 +1,110 @@
+version: "3.9"
+
+# ── KnessetIL Local Development Stack ──────────────────────────────────────────
+# Starts: Redis + PostgreSQL + FastAPI (api) + Next.js (web) + nginx (reverse proxy)
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml up -d
+#   docker compose -f infra/docker-compose.yml logs -f api
+#   docker compose -f infra/docker-compose.yml down
+
+services:
+
+  # ── Data layer ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: knesset_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: knesset_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: knesset
+      POSTGRES_PASSWORD: knesset
+      POSTGRES_DB: knessetil
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knesset -d knessetil"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Application layer ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: knesset_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../apps/api/.env
+    environment:
+      # Override for Docker networking (use service names, not localhost)
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql+asyncpg://knesset:knesset@postgres:5432/knessetil
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:80
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Hot-reload in development (remove for production)
+      - ../apps/api/app:/app/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: knesset_web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NODE_ENV: development
+    depends_on:
+      - api
+    volumes:
+      - ../apps/web:/app
+      - /app/node_modules
+      - /app/.next
+
+  nginx:
+    image: nginx:alpine
+    container_name: knesset_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - api
+
+volumes:
+  redis_data:
+  pg_data:
