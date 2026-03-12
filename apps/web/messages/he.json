@@ -1,0 +1,56 @@
+{
+  "nav": {
+    "home": "ראשי",
+    "bills": "הצעות חוק",
+    "members": "חברי כנסת",
+    "parties": "סיעות",
+    "search": "חיפוש"
+  },
+  "home": {
+    "title": "שקיפות הכנסת",
+    "subtitle": "עקבו אחרי הצבעות, חוקים וחברי כנסת — הכל במקום אחד",
+    "recentVotes": "הצבעות אחרונות",
+    "recentBills": "הצעות חוק אחרונות",
+    "stats": "סטטיסטיקות"
+  },
+  "bills": {
+    "title": "הצעות חוק",
+    "search": "חפש הצעת חוק...",
+    "filterStatus": "סנן לפי סטטוס",
+    "allStatuses": "כל הסטטוסים",
+    "noResults": "לא נמצאו הצעות חוק",
+    "initiatedBy": "יוזמים"
+  },
+  "members": {
+    "title": "חברי כנסת",
+    "search": "חפש חבר/ת כנסת...",
+    "currentOnly": "בתפקיד כיום",
+    "rebellionRate": "אחוז מרידה",
+    "attendanceRate": "אחוז נוכחות",
+    "votesTotal": "סך הצבעות",
+    "noResults": "לא נמצאו חברי כנסת"
+  },
+  "parties": {
+    "title": "סיעות",
+    "cohesion": "אחידות סיעתית",
+    "members": "חברים"
+  },
+  "vote": {
+    "for": "בעד",
+    "against": "נגד",
+    "abstain": "נמנע",
+    "absent": "נעדר",
+    "accepted": "עבר",
+    "rejected": "נדחה",
+    "breakdown": "פילוח הצבעה"
+  },
+  "common": {
+    "loading": "טוען...",
+    "error": "שגיאה בטעינת הנתונים",
+    "back": "חזרה",
+    "viewAll": "ראה הכל",
+    "page": "עמוד",
+    "of": "מתוך",
+    "total": "סה\"כ"
+  }
+}
