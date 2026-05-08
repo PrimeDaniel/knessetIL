@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/Backend-Python_FastAPI-3776AB?logo=python&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?logo=next.js&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker&logoColor=white)
+
 ![GCP](https://img.shields.io/badge/Deployment-GCP-4285F4?logo=google-cloud&logoColor=white)
 
 **KnessetTrack** is a civic transparency web application designed to make the Israeli Parliament's (Knesset) legislative data accessible, visual, and easy to understand for the general public. 
@@ -25,14 +25,14 @@ The project uses a decoupled architecture to ensure high performance and prevent
 * **Frontend:** Next.js (React), Tailwind CSS, Recharts (for data visualization).
 * **Backend:** Python with FastAPI (serving as an API Gateway and caching layer).
 * **Database/Cache:** PostgreSQL / Redis (for caching Open Knesset API responses).
-* **Infrastructure:** Dockerized containers deployed on Google Cloud Platform (GCP).
+* **Infrastructure:** Deployable on serverless and cloud platforms (Vercel, Render, GCP).
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 * Node.js (v18+)
 * Python (3.10+)
-* Docker & Docker Compose
+* PostgreSQL and Redis (running locally or via cloud provider)
 
 ### Installation
 
@@ -58,10 +58,6 @@ The project uses a decoupled architecture to ensure high performance and prevent
     npm run dev
     ```
 
-4.  **Run with Docker:**
-    ```bash
-    docker-compose up --build
-    ```
 
 ## 🔌 API & Data Source
 
