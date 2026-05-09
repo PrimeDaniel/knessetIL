@@ -1,43 +1,55 @@
-"use client";
+﻿"use client";
 
+import { use } from "react";
 import Link from "next/link";
-import { ArrowRight, Calendar, User2, Hash, ExternalLink } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { StatusBadge } from "@/components/shared/VoteBadge";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
-import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { Skeleton } from "@/components/shared/SkeletonCard";
 import { useBill, useBillVotes } from "@/hooks/useBills";
-import { formatDateHe } from "@/lib/utils";
+import { formatDateHe, cn } from "@/lib/utils";
+import {
+  ChevronRight, Calendar, User2, FileText,
+  CheckCircle2, XCircle, AlertCircle, Building2, Hash,
+} from "lucide-react";
 
-export default function BillDetailPage({ params }: { params: { id: string } }) {
-  const billId = parseInt(params.id, 10);
+function statusStyle(statusId: number) {
+  if (statusId === 13) return "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300";
+  if (statusId === 6)  return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300";
+  if (statusId === 4 || statusId === 5) return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300";
+  if (statusId === 7 || statusId === 8 || statusId === 9) return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+function statusAccentBar(statusId: number) {
+  if (statusId === 13 || statusId === 6) return "bg-gradient-to-l from-green-500 to-emerald-400";
+  if (statusId === 4 || statusId === 5)  return "bg-gradient-to-l from-blue-500 to-indigo-400";
+  if (statusId === 7 || statusId === 8 || statusId === 9) return "bg-gradient-to-l from-red-500 to-rose-400";
+  return "bg-gradient-to-l from-primary to-blue-400";
+}
+
+export default function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const billId = parseInt(id, 10);
+
   const { data: bill, isLoading, isError } = useBill(billId);
-  const { data: voteDetail } = useBillVotes(billId);
+  const { data: voteDetail, isLoading: voteLoading } = useBillVotes(billId);
 
-  if (isLoading) {
+  if (isError) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Header />
-        <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
-          <div className="space-y-4">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (isError || !bill) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <Header />
-        <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive">
-            לא ניתן לטעון את הצעת החוק.
+        <main className="flex-1 container mx-auto px-4 py-16 max-w-3xl">
+          <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-destructive">
+            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">הצעת החוק לא נמצאה</p>
+              <p className="text-sm mt-1 opacity-80">ייתכן שהמזהה שגוי או שהנתונים טרם נטענו.</p>
+              <Link href="/bills" className="text-sm mt-3 inline-flex items-center gap-1 text-primary hover:underline">
+                <ChevronRight className="h-3.5 w-3.5" />
+                חזרה לרשימת הצעות החוק
+              </Link>
+            </div>
           </div>
         </main>
         <Footer />
@@ -46,144 +58,167 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         {/* Breadcrumb */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href="/bills" className="hover:text-foreground flex items-center gap-1">
-            <ArrowRight className="h-3.5 w-3.5" />
+        <nav className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link href="/bills" className="hover:text-foreground transition-colors flex items-center gap-1">
+            <FileText className="h-3.5 w-3.5" />
             הצעות חוק
           </Link>
-          <span>/</span>
-          <span className="text-foreground truncate max-w-[200px]">{bill.name}</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          {isLoading ? (
+            <Skeleton className="h-4 w-32" />
+          ) : (
+            <span className="text-foreground truncate max-w-[240px]">{bill?.name}</span>
+          )}
         </nav>
 
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <h1 className="text-xl font-bold leading-snug flex-1">{bill.name}</h1>
-            <StatusBadge status={bill.status_desc} className="shrink-0 mt-1" />
-          </div>
-          {bill.name_eng && (
-            <p className="text-sm text-muted-foreground">{bill.name_eng}</p>
-          )}
-        </div>
-
-        {/* Meta row */}
-        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-6 pb-6 border-b border-border">
-          <span className="flex items-center gap-1.5">
-            <Hash className="h-3.5 w-3.5" />
-            מזהה: {bill.bill_id}
-          </span>
-          <span className="flex items-center gap-1.5">
-            כנסת {bill.knesset_num}
-          </span>
-          {bill.publication_date && (
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              {formatDateHe(bill.publication_date)}
-            </span>
-          )}
-          {bill.sub_type_desc && (
-            <span className="bg-muted px-2 py-0.5 rounded-full text-xs">
-              {bill.sub_type_desc}
-            </span>
-          )}
-        </div>
-
-        {/* Initiators */}
-        {bill.initiators.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <User2 className="h-4 w-4" />
-              יוזמים
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {bill.initiators.map((init) => (
-                <Link
-                  key={init.mk_individual_id}
-                  href={`/members/${init.mk_individual_id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs hover:bg-accent/30 transition-colors"
-                >
-                  {init.mk_name}
-                  {init.faction_name && (
-                    <span className="text-muted-foreground">({init.faction_name})</span>
+        {isLoading ? (
+          <BillDetailSkeleton />
+        ) : bill ? (
+          <div className="space-y-5">
+            {/* Hero card */}
+            <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
+              <div className={cn("h-1.5 w-full", statusAccentBar(bill.status_id))} />
+              <div className="p-6">
+                <h1 className="text-xl font-bold leading-snug text-foreground">{bill.name}</h1>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className={cn("inline-flex items-center rounded-lg border px-3 py-1 text-xs font-semibold", statusStyle(bill.status_id))}>
+                    {bill.status_desc}
+                  </span>
+                  {bill.sub_type_desc && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
+                      <Building2 className="h-3 w-3" />{bill.sub_type_desc}
+                    </span>
                   )}
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                </Link>
-              ))}
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
+                    <Hash className="h-3 w-3" />כנסת {bill.knesset_num}
+                  </span>
+                  {bill.publication_date && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3" />{formatDateHe(bill.publication_date)}
+                    </span>
+                  )}
+                </div>
+                {bill.summary_law && (
+                  <div className="mt-5 pt-5 border-t border-border">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">תקציר</h2>
+                    <p className="text-sm leading-relaxed text-foreground/80">{bill.summary_law}</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </section>
-        )}
 
-        {/* Summary */}
-        {bill.summary_law && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold mb-2">סיכום</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
-              {bill.summary_law}
-            </p>
-          </section>
-        )}
+            {/* Initiators */}
+            {bill.initiators.length > 0 && (
+              <section className="rounded-xl border border-border bg-card shadow-card p-5">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">יוזמים</h2>
+                <div className="flex flex-wrap gap-2">
+                  {bill.initiators.map((initiator) => (
+                    <Link
+                      key={initiator.mk_individual_id}
+                      href={`/members/${initiator.mk_individual_id}`}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 hover:bg-accent hover:border-primary/20 px-3 py-2 transition-colors"
+                    >
+                      <User2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium leading-none">{initiator.mk_name}</p>
+                        {initiator.faction_name && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{initiator.faction_name}</p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Vote result */}
-        {bill.vote && (
-          <section className="mb-6 rounded-lg border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-4">תוצאות הצבעה</h2>
-            <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-              <span>
-                <Calendar className="inline h-3.5 w-3.5 me-1" />
-                {formatDateHe(bill.vote.vote_date)}
-              </span>
-              <span className={bill.vote.is_accepted ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium"}>
-                {bill.vote.is_accepted ? "עבר" : "נדחה"}
-              </span>
-            </div>
-            <VoteBreakdownBar
-              totalFor={bill.vote.total_for}
-              totalAgainst={bill.vote.total_against}
-              totalAbstain={bill.vote.total_abstain}
-            />
-          </section>
-        )}
-
-        {/* Vote detail from /bills/{id}/votes (fallback for when bill.vote is missing) */}
-        {!bill.vote && voteDetail && (
-          <section className="mb-6 rounded-lg border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold mb-4">תוצאות הצבעה</h2>
-            <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-              <span className={voteDetail.is_accepted ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium"}>
-                {voteDetail.is_accepted ? "עבר" : "נדחה"}
-              </span>
-            </div>
-            <VoteBreakdownBar
-              totalFor={voteDetail.total_for}
-              totalAgainst={voteDetail.total_against}
-              totalAbstain={voteDetail.total_abstain}
-            />
-          </section>
-        )}
-
-        {/* Related bills */}
-        {bill.related_bills.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold mb-3">הצעות חוק קשורות</h2>
-            <div className="space-y-2">
-              {bill.related_bills.map((rel) => (
-                <Link
-                  key={rel.bill_id}
-                  href={`/bills/${rel.bill_id}`}
-                  className="block rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-accent/30 transition-colors"
-                >
-                  {rel.name}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+            {/* Vote breakdown */}
+            <section className="rounded-xl border border-border bg-card shadow-card p-5">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">תוצאת הצבעה</h2>
+              {voteLoading && (
+                <div className="space-y-3">
+                  <Skeleton className="h-8 w-full rounded-full" />
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+              )}
+              {!voteLoading && voteDetail && (
+                <div className="space-y-4">
+                  <div className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-4 py-3",
+                    voteDetail.is_accepted
+                      ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                      : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                  )}>
+                    {voteDetail.is_accepted
+                      ? <CheckCircle2 className="h-5 w-5 shrink-0" />
+                      : <XCircle className="h-5 w-5 shrink-0" />
+                    }
+                    <span className="font-semibold text-sm">
+                      {voteDetail.is_accepted ? "ההצבעה עברה" : "ההצבעה נדחתה"}
+                    </span>
+                    {voteDetail.vote_date && (
+                      <span className="text-xs opacity-70 ms-auto">{formatDateHe(voteDetail.vote_date)}</span>
+                    )}
+                  </div>
+                  <VoteBreakdownBar
+                    totalFor={voteDetail.total_for}
+                    totalAgainst={voteDetail.total_against}
+                    totalAbstain={voteDetail.total_abstain}
+                  />
+                </div>
+              )}
+              {!voteLoading && !voteDetail && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  לא נמצאו נתוני הצבעה עבור הצעת חוק זו.
+                </p>
+              )}
+            </section>
+          </div>
+        ) : null}
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function BillDetailSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
+        <div className="h-1.5 bg-muted w-full" />
+        <div className="p-6 space-y-4">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-5 w-3/4" />
+          <div className="flex gap-2 pt-2">
+            <Skeleton className="h-7 w-24 rounded-lg" />
+            <Skeleton className="h-7 w-20 rounded-lg" />
+            <Skeleton className="h-7 w-28 rounded-lg" />
+          </div>
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card shadow-card p-5 space-y-3">
+        <Skeleton className="h-3 w-12" />
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-32 rounded-lg" />
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card shadow-card p-5 space-y-3">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-8 w-full rounded-full" />
+        <div className="flex justify-between">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+      </div>
     </div>
   );
 }
