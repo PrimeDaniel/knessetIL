@@ -3,15 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDashboard } from "@/hooks/useParties";
+import { useVoteDetail } from "@/hooks/useVotes";
 import { StatCard } from "@/components/shared/StatCard";
 import { Skeleton, SkeletonCard } from "@/components/shared/SkeletonCard";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { formatDateHe } from "@/lib/utils";
-import type { RecentVote } from "@knesset/types";
+import type { RecentVote, PartyVoteBreakdown } from "@knesset/types";
 import {
   CheckCircle2, XCircle, FileText, Users, Scale,
   ChevronLeft, ChevronDown, ChevronUp, BarChart3, TrendingUp, ArrowLeft,
-  Vote, Info,
+  Vote, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +128,9 @@ export function HomeDashboard() {
 
 function VoteCard({ vote }: { vote: RecentVote }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Lazy-load full vote detail (including faction breakdown) only when expanded
+  const { data: detail, isLoading: detailLoading } = useVoteDetail(vote.vote_id, expanded);
 
   const typeMeta = getVoteTypeMeta(vote.vote_item_dscr || "");
 
@@ -322,14 +326,102 @@ function VoteCard({ vote }: { vote: RecentVote }) {
             />
           </div>
 
-          {/* Note about party breakdown */}
-          <div className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>
-              פירוט הצבעה לפי סיעה אינו זמין בנתוני הכנסת הפתוחה הנוכחיים — רק סך הקולות מפורסם.
-            </span>
+          {/* Faction breakdown — lazy loaded */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">הצבעה לפי סיעה</p>
+            {detailLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>טוען נתוני סיעות...</span>
+              </div>
+            )}
+            {!detailLoading && detail && detail.party_breakdown.length > 0 && (
+              <FactionBreakdownTable breakdown={detail.party_breakdown} />
+            )}
+            {!detailLoading && detail && detail.party_breakdown.length === 0 && (
+              <p className="text-xs text-muted-foreground">לא נמצאו נתוני סיעות עבור הצבעה זו.</p>
+            )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function FactionBreakdownTable({ breakdown }: { breakdown: PartyVoteBreakdown[] }) {
+  const sorted = [...breakdown].sort(
+    (a, b) => (b.for_count + b.against_count + b.abstain_count) - (a.for_count + a.against_count + a.abstain_count)
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-muted/50 border-b border-border">
+            <th className="text-start px-3 py-2 font-semibold text-muted-foreground">סיעה</th>
+            <th className="text-center px-2 py-2 font-semibold text-vote-for">בעד</th>
+            <th className="text-center px-2 py-2 font-semibold text-vote-against">נגד</th>
+            <th className="text-center px-2 py-2 font-semibold text-vote-abstain">נמנע</th>
+            <th className="px-2 py-2 min-w-[80px]" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((f) => {
+            const active = f.for_count + f.against_count + f.abstain_count;
+            if (active === 0) return null;
+            return (
+              <tr key={f.faction_id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                <td className="px-3 py-2 font-medium text-foreground max-w-[140px] truncate">
+                  {f.faction_name || `סיעה ${f.faction_id}`}
+                </td>
+                <td className="text-center px-2 py-2">
+                  <span className={cn("font-semibold tabular-nums", f.for_count > 0 ? "text-vote-for" : "text-muted-foreground/40")}>
+                    {f.for_count}
+                  </span>
+                </td>
+                <td className="text-center px-2 py-2">
+                  <span className={cn("font-semibold tabular-nums", f.against_count > 0 ? "text-vote-against" : "text-muted-foreground/40")}>
+                    {f.against_count}
+                  </span>
+                </td>
+                <td className="text-center px-2 py-2">
+                  <span className={cn("font-semibold tabular-nums", f.abstain_count > 0 ? "text-vote-abstain" : "text-muted-foreground/40")}>
+                    {f.abstain_count}
+                  </span>
+                </td>
+                <td className="px-2 py-2">
+                  <FactionMiniBar
+                    forCount={f.for_count}
+                    againstCount={f.against_count}
+                    abstainCount={f.abstain_count}
+                    total={active}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FactionMiniBar({
+  forCount, againstCount, abstainCount, total,
+}: {
+  forCount: number; againstCount: number; abstainCount: number; total: number;
+}) {
+  if (total === 0) return null;
+  return (
+    <div className="flex h-2 w-full overflow-hidden rounded-full border border-border/40">
+      {forCount > 0 && (
+        <div style={{ width: `${(forCount / total) * 100}%` }} className="bg-vote-for" />
+      )}
+      {againstCount > 0 && (
+        <div style={{ width: `${(againstCount / total) * 100}%` }} className="bg-vote-against" />
+      )}
+      {abstainCount > 0 && (
+        <div style={{ width: `${(abstainCount / total) * 100}%` }} className="bg-vote-abstain" />
       )}
     </div>
   );
