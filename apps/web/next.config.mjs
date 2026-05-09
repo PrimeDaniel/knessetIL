@@ -1,9 +1,9 @@
-import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       {
@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
       {
-        // MK photos are sometimes served from a CDN
         protocol: "https",
         hostname: "*.oknesset.org",
         pathname: "/**",
