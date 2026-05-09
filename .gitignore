@@ -47,3 +47,5 @@ Thumbs.db
 # Misc
 *.tsbuildinfo
 CLAUDE.md
+
+run-local.ps1
