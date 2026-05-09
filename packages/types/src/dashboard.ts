@@ -32,7 +32,10 @@ export interface DashboardStats {
 export interface RecentVote {
   vote_id: number;
   vote_date: string;
-  vote_item_dscr: string; // Hebrew
+  vote_item_dscr: string; // Hebrew — specific vote item (e.g. הסתייגות)
+  sess_item_dscr: string; // Hebrew — broader session/topic context (bill name etc.)
+  vote_type: number;
+  session_num: number;
   is_accepted: boolean;
   total_for: number;
   total_against: number;

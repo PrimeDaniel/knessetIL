@@ -1,16 +1,38 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useDashboard } from "@/hooks/useParties";
 import { StatCard } from "@/components/shared/StatCard";
 import { Skeleton, SkeletonCard } from "@/components/shared/SkeletonCard";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { formatDateHe } from "@/lib/utils";
+import type { RecentVote } from "@knesset/types";
 import {
   CheckCircle2, XCircle, FileText, Users, Scale,
-  ChevronLeft, BarChart3, TrendingUp, ArrowLeft,
+  ChevronLeft, ChevronDown, ChevronUp, BarChart3, TrendingUp, ArrowLeft,
+  Vote, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Map vote_item_dscr short values to nicer labels + colours
+const VOTE_TYPE_META: Record<string, { label: string; color: string }> = {
+  "הסתייגות":               { label: "הסתייגות", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
+  "קריאה שניה ושלישית":     { label: "ק׳ שנייה ושלישית", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+  "קריאה ראשונה":           { label: "קריאה ראשונה", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" },
+  "הצבעת אי-אמון":         { label: "אי-אמון", color: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300" },
+  "אישור":                  { label: "אישור", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+};
+
+function getVoteTypeMeta(dscr: string) {
+  if (!dscr) return { label: "הצבעה", color: "bg-muted text-muted-foreground" };
+  const exact = VOTE_TYPE_META[dscr.trim()];
+  if (exact) return exact;
+  for (const [key, val] of Object.entries(VOTE_TYPE_META)) {
+    if (dscr.includes(key)) return val;
+  }
+  return { label: dscr.length <= 20 ? dscr : "הצבעה", color: "bg-muted text-muted-foreground" };
+}
 
 export function HomeDashboard() {
   const { data, isLoading, error } = useDashboard();
@@ -62,62 +84,9 @@ export function HomeDashboard() {
             <ChevronLeft className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {data.recent_votes.slice(0, 8).map((vote) => (
-            <div
-              key={vote.vote_id}
-              className="group rounded-xl border border-border bg-card shadow-card hover:shadow-card-md hover:border-primary/20 transition-all p-4"
-            >
-              <div className="flex items-start gap-3">
-                <div className={cn(
-                  "mt-0.5 shrink-0 rounded-full p-1",
-                  vote.is_accepted
-                    ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
-                    : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                )}>
-                  {vote.is_accepted
-                    ? <CheckCircle2 className="h-4 w-4" />
-                    : <XCircle className="h-4 w-4" />
-                  }
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">
-                    {vote.vote_item_dscr || "הצבעה ללא כותרת"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatDateHe(vote.vote_date)}
-                  </p>
-
-                  {/* Inline mini vote bar */}
-                  <div className="mt-2.5">
-                    <VoteBreakdownBar
-                      totalFor={vote.total_for}
-                      totalAgainst={vote.total_against}
-                      totalAbstain={vote.total_abstain}
-                      showLabels={false}
-                      compact
-                    />
-                    <div className="mt-1.5 flex gap-4 text-[11px]">
-                      <span className="text-vote-for font-medium">בעד {vote.total_for}</span>
-                      <span className="text-vote-against font-medium">נגד {vote.total_against}</span>
-                      {vote.total_abstain > 0 && (
-                        <span className="text-vote-abstain font-medium">נמנע {vote.total_abstain}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <span className={cn(
-                  "shrink-0 self-start text-xs font-semibold px-2 py-1 rounded-full",
-                  vote.is_accepted
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                )}>
-                  {vote.is_accepted ? "עבר" : "נדחה"}
-                </span>
-              </div>
-            </div>
+            <VoteCard key={vote.vote_id} vote={vote} />
           ))}
         </div>
       </section>
@@ -152,6 +121,233 @@ export function HomeDashboard() {
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function VoteCard({ vote }: { vote: RecentVote }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const typeMeta = getVoteTypeMeta(vote.vote_item_dscr || "");
+
+  // Prefer the session context (topic/bill name) as the primary title when it's
+  // richer than the item description (which is often just "הסתייגות")
+  const primaryTitle =
+    vote.sess_item_dscr && vote.sess_item_dscr.trim().length > (vote.vote_item_dscr || "").trim().length
+      ? vote.sess_item_dscr
+      : vote.vote_item_dscr || "הצבעה ללא כותרת";
+
+  const hasContext =
+    vote.sess_item_dscr &&
+    vote.sess_item_dscr.trim() !== (vote.vote_item_dscr || "").trim() &&
+    vote.sess_item_dscr.trim().length > 0;
+
+  const total = vote.total_for + vote.total_against + vote.total_abstain || 1;
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border bg-card shadow-card transition-all overflow-hidden",
+        expanded
+          ? "border-primary/30 shadow-card-md"
+          : "border-border hover:border-primary/20 hover:shadow-card-md"
+      )}
+    >
+      {/* Accent bar top */}
+      <div
+        className={cn(
+          "h-1 w-full",
+          vote.is_accepted
+            ? "bg-gradient-to-l from-green-500 to-emerald-400"
+            : "bg-gradient-to-l from-red-500 to-rose-400"
+        )}
+      />
+
+      {/* Clickable header */}
+      <button
+        type="button"
+        className="w-full text-start p-4 focus:outline-none"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        <div className="flex items-start gap-3">
+          {/* Result icon */}
+          <div
+            className={cn(
+              "mt-0.5 shrink-0 rounded-full p-1.5",
+              vote.is_accepted
+                ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+            )}
+          >
+            {vote.is_accepted
+              ? <CheckCircle2 className="h-4 w-4" />
+              : <XCircle className="h-4 w-4" />
+            }
+          </div>
+
+          {/* Title + meta */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
+              {primaryTitle}
+            </p>
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {/* Vote type badge */}
+              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", typeMeta.color)}>
+                <Vote className="h-2.5 w-2.5 ml-1" />
+                {typeMeta.label}
+              </span>
+
+              {/* Date */}
+              <span className="text-[11px] text-muted-foreground">
+                {formatDateHe(vote.vote_date)}
+              </span>
+
+              {vote.session_num > 0 && (
+                <span className="text-[11px] text-muted-foreground">
+                  · ישיבה {vote.session_num}
+                </span>
+              )}
+            </div>
+
+            {/* Compact breakdown bar + counts */}
+            <div className="mt-2.5 space-y-1">
+              {/* Stacked bar */}
+              <div className="flex h-3 w-full overflow-hidden rounded-full border border-border/60">
+                {vote.total_for > 0 && (
+                  <div
+                    style={{ width: `${(vote.total_for / total) * 100}%` }}
+                    className="bg-vote-for"
+                    title={`בעד: ${vote.total_for}`}
+                  />
+                )}
+                {vote.total_against > 0 && (
+                  <div
+                    style={{ width: `${(vote.total_against / total) * 100}%` }}
+                    className="bg-vote-against"
+                    title={`נגד: ${vote.total_against}`}
+                  />
+                )}
+                {vote.total_abstain > 0 && (
+                  <div
+                    style={{ width: `${(vote.total_abstain / total) * 100}%` }}
+                    className="bg-vote-abstain"
+                    title={`נמנע: ${vote.total_abstain}`}
+                  />
+                )}
+              </div>
+
+              {/* Counts row */}
+              <div className="flex items-center gap-3 text-[11px]">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-vote-for" />
+                  <span className="font-semibold text-vote-for">{vote.total_for}</span>
+                  <span className="text-muted-foreground">בעד</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-vote-against" />
+                  <span className="font-semibold text-vote-against">{vote.total_against}</span>
+                  <span className="text-muted-foreground">נגד</span>
+                </span>
+                {vote.total_abstain > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full bg-vote-abstain" />
+                    <span className="font-semibold text-vote-abstain">{vote.total_abstain}</span>
+                    <span className="text-muted-foreground">נמנע</span>
+                  </span>
+                )}
+
+                {/* Result badge pushed to end */}
+                <span className={cn(
+                  "ms-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                  vote.is_accepted
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                )}>
+                  {vote.is_accepted ? "עבר" : "נדחה"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Expand chevron */}
+          <div className="shrink-0 mt-1 text-muted-foreground/50">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
+        </div>
+      </button>
+
+      {/* Expanded details panel */}
+      {expanded && (
+        <div className="border-t border-border bg-muted/30 px-4 py-4 space-y-4">
+          {/* Full context title if different from primary */}
+          {hasContext && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">נושא הדיון</p>
+              <p className="text-sm text-foreground/90 leading-relaxed">{vote.sess_item_dscr}</p>
+            </div>
+          )}
+
+          {/* Full breakdown bar with labels */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">פירוט ההצבעה</p>
+            <VoteBreakdownBar
+              totalFor={vote.total_for}
+              totalAgainst={vote.total_against}
+              totalAbstain={vote.total_abstain}
+              showLabels
+            />
+          </div>
+
+          {/* Percentages row */}
+          <div className="grid grid-cols-3 gap-2">
+            <PercentTile
+              label="בעד"
+              count={vote.total_for}
+              total={total}
+              colorClass="text-vote-for bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+            />
+            <PercentTile
+              label="נגד"
+              count={vote.total_against}
+              total={total}
+              colorClass="text-vote-against bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+            />
+            <PercentTile
+              label="נמנע"
+              count={vote.total_abstain}
+              total={total}
+              colorClass="text-vote-abstain bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800"
+            />
+          </div>
+
+          {/* Note about party breakdown */}
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>
+              פירוט הצבעה לפי סיעה אינו זמין בנתוני הכנסת הפתוחה הנוכחיים — רק סך הקולות מפורסם.
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PercentTile({
+  label, count, total, colorClass,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  colorClass: string;
+}) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className={cn("rounded-lg border px-3 py-2.5 text-center", colorClass)}>
+      <p className="text-lg font-bold tabular-nums leading-none">{pct}%</p>
+      <p className="text-[11px] font-medium mt-1">{count.toLocaleString("he-IL")} {label}</p>
     </div>
   );
 }
