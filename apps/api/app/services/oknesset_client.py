@@ -53,6 +53,11 @@ DATASET_URLS: dict[str, str] = {
     # MK vote lookup — 1,111 rows (vip_id → mk_individual_id mapping ONLY)
     "view_vote_mk_individual":
         "votes/view_vote_mk_individual/view_vote_mk_individual.csv",
+    # Per-MK vote decisions — 1,275,825 rows (vote_id, kmmbr_id, kmmbr_name,
+    # vote_result [1=for 2=against 3=abstain 0=absent 4=not_participating],
+    # knesset_num, faction_id, faction_name)
+    "vote_rslts_kmmbr_shadow":
+        "votes/vote_rslts_kmmbr_shadow/vote_rslts_kmmbr_shadow.csv",
 }
 
 
@@ -125,6 +130,16 @@ async def fetch_vote_data() -> dict[str, pd.DataFrame]:
         else:
             out[ds] = result
     return out
+
+
+async def fetch_vote_mk_decisions() -> pd.DataFrame:
+    """
+    Fetch per-MK vote decisions (85 MB, ~1.27 M rows).
+    vote_result: 1=for, 2=against, 3=abstain, 0=absent, 4=not_participating
+    Columns: vote_id, kmmbr_id, kmmbr_name, vote_result, knesset_num, faction_id, faction_name
+    Caller is responsible for caching — this file is large.
+    """
+    return await fetch_csv("vote_rslts_kmmbr_shadow", timeout=180.0)
 
 
 async def fetch_bills_data() -> dict[str, pd.DataFrame]:

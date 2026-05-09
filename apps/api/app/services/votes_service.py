@@ -1,18 +1,15 @@
 """
-Votes service -- corrected for real schema (verified 2026-03-12).
+Votes service.
 
-Real view_vote_rslts_hdr_approved.csv columns:
+view_vote_rslts_hdr_approved.csv columns:
   id, knesset_num, session_id, sess_item_nbr, sess_item_id, sess_item_dscr,
   vote_item_id, vote_item_dscr, vote_date, vote_time, is_elctrnc_vote, vote_type,
-  is_accepted (INTEGER 0/1, NOT boolean), total_for, total_against, total_abstain,
+  is_accepted (INTEGER 0/1), total_for, total_against, total_abstain,
   vote_stat, session_num, vote_nbr_in_sess, reason, modifier, remark
 
-Real view_vote_mk_individual.csv (1,111 rows):
-  vip_id, mk_individual_id, mk_individual_name, mk_individual_name_eng,
-  mk_individual_first_name, mk_individual_first_name_eng
-  -- This is a LOOKUP TABLE only (MK identifier mapping).
-  -- Per-MK vote decisions (For/Against/Abstain) are NOT in the public CSV data.
-  -- Party breakdown per vote is therefore NOT computable from CSVs.
+vote_rslts_kmmbr_shadow.csv columns (~1.27 M rows):
+  vote_id, kmmbr_id, kmmbr_name, vote_result, knesset_num, faction_id, faction_name
+  vote_result: 1=for, 2=against, 3=abstain, 0=absent, 4=not_participating
 """
 from __future__ import annotations
 
@@ -25,9 +22,11 @@ import pandas as pd
 import redis.asyncio as aioredis
 
 from app.services import cache_service as cache
-from app.services.oknesset_client import fetch_vote_data
+from app.services.oknesset_client import fetch_vote_data, fetch_vote_mk_decisions
 
 logger = logging.getLogger(__name__)
+
+_DECISION_MAP = {1: "for", 2: "against", 3: "abstain", 0: "absent", 4: "absent"}
 
 
 def _now_iso() -> str:
@@ -106,8 +105,14 @@ async def get_vote_detail(vote_id: int, redis: aioredis.Redis) -> dict | None:
     cache_key = f"votes:detail:{vote_id}"
 
     async def factory() -> dict | None:
-        frames = await fetch_vote_data()
-        df = frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
+        import asyncio
+        (vote_frames, shadow_df) = await asyncio.gather(
+            fetch_vote_data(),
+            fetch_vote_mk_decisions(),
+            return_exceptions=False,
+        )
+
+        df = vote_frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
         if df.empty:
             return None
 
@@ -116,10 +121,57 @@ async def get_vote_detail(vote_id: int, redis: aioredis.Redis) -> dict | None:
             return None
 
         base = _row_to_vote(rows.iloc[0])
-        # Per-MK decisions and party breakdown not available in CSV data
-        base["party_breakdown"] = []
-        base["mk_votes"] = []
-        base["_note"] = "Per-MK vote decisions not available in public oknesset CSV data"
+
+        # --- Per-MK decisions from shadow CSV ---
+        mk_rows = shadow_df[shadow_df["vote_id"] == vote_id] if not shadow_df.empty else pd.DataFrame()
+
+        mk_votes: list[dict] = []
+        for _, r in mk_rows.iterrows():
+            result_int = int(_safe(r.get("vote_result")) or 0)
+            mk_votes.append({
+                "vote_id":          vote_id,
+                "mk_individual_id": int(_safe(r.get("kmmbr_id")) or 0),
+                "mk_name":          _safe(r.get("kmmbr_name", "")),
+                "mk_name_eng":      "",
+                "faction_id":       int(_safe(r.get("faction_id")) or 0),
+                "faction_name":     _safe(r.get("faction_name", "")),
+                "decision":         _DECISION_MAP.get(result_int, "absent"),
+                "vote_date":        base["vote_date"],
+                "vote_item_dscr":   base["vote_item_dscr"],
+            })
+
+        # --- Party breakdown grouped by faction ---
+        party_breakdown: list[dict] = []
+        if mk_votes:
+            faction_map: dict[int, dict] = {}
+            for mv in mk_votes:
+                fid = mv["faction_id"]
+                if fid not in faction_map:
+                    faction_map[fid] = {
+                        "faction_id":    fid,
+                        "faction_name":  mv["faction_name"] or "",
+                        "for_count":     0,
+                        "against_count": 0,
+                        "abstain_count": 0,
+                        "absent_count":  0,
+                        "total_members": 0,
+                    }
+                entry = faction_map[fid]
+                entry["total_members"] += 1
+                d = mv["decision"]
+                if d == "for":        entry["for_count"]     += 1
+                elif d == "against":  entry["against_count"] += 1
+                elif d == "abstain":  entry["abstain_count"] += 1
+                else:                 entry["absent_count"]  += 1
+
+            party_breakdown = sorted(
+                faction_map.values(),
+                key=lambda x: x["for_count"] + x["against_count"] + x["abstain_count"],
+                reverse=True,
+            )
+
+        base["party_breakdown"] = party_breakdown
+        base["mk_votes"] = mk_votes
         return base
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_VOTE_DETAIL, redis)
