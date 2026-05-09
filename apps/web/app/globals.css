@@ -4,78 +4,76 @@
 
 @layer base {
   :root {
-    /* shadcn/ui CSS variables (New York theme, slate base) */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 20% 98%;
+    --foreground: 222 47% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 222 47% 10%;
+    --primary: 221 83% 50%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 214 32% 94%;
+    --secondary-foreground: 222 47% 18%;
+    --muted: 214 32% 94%;
+    --muted-foreground: 215 16% 48%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 14%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --border: 214 24% 88%;
+    --input: 214 24% 88%;
+    --ring: 221 83% 50%;
+    --radius: 0.75rem;
 
-    /* Vote semantic colours */
-    --vote-for: 142.1 76.2% 36.3%;
-    --vote-against: 0 84.2% 60.2%;
-    --vote-abstain: 37.7 92.1% 50.2%;
-    --vote-absent: 220 8.9% 46.1%;
+    --vote-for: 142 72% 34%;
+    --vote-against: 0 84% 55%;
+    --vote-abstain: 38 92% 46%;
+    --vote-absent: 220 9% 60%;
+
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 224 71% 4%;
+    --foreground: 210 40% 96%;
+    --card: 224 71% 6%;
+    --card-foreground: 210 40% 96%;
+    --popover: 224 71% 6%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 217 91% 62%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 62%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 62%;
+
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 8px -2px rgb(0 0 0 / 0.35);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
   body {
     @apply bg-background text-foreground;
-    /* Ensure smooth Hebrew text rendering */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-
-  /* RTL-aware focus ring */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
 @layer utilities {
-  /* Vote decision colour utilities */
   .text-vote-for     { color: hsl(var(--vote-for)); }
   .text-vote-against { color: hsl(var(--vote-against)); }
   .text-vote-abstain { color: hsl(var(--vote-abstain)); }
@@ -86,10 +84,22 @@
   .bg-vote-abstain { background-color: hsl(var(--vote-abstain)); }
   .bg-vote-absent  { background-color: hsl(var(--vote-absent)); }
 
-  /* Hebrew text helpers */
-  .text-hebrew {
-    font-family: var(--font-heebo), Heebo, Assistant, sans-serif;
-    direction: rtl;
-    unicode-bidi: embed;
-  }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-card-md { box-shadow: var(--shadow-md); }
+}
+
+/* Shimmer skeleton animation */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--accent)) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }

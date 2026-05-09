@@ -1,44 +1,85 @@
-import Link from "next/link";
-import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
-import { Scale } from "lucide-react";
+"use client";
 
-// Navigation items — RTL order (rightmost = first)
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Scale, Menu, X } from "lucide-react";
+import { useState } from "react";
+
 const NAV_ITEMS = [
-  { href: "/", labelKey: "nav.home" },
-  { href: "/bills", labelKey: "nav.bills" },
-  { href: "/members", labelKey: "nav.members" },
-  { href: "/parties", labelKey: "nav.parties" },
+  { href: "/",        label: "ראשי" },
+  { href: "/bills",   label: "הצעות חוק" },
+  { href: "/members", label: "חברי כנסת" },
+  { href: "/parties", label: "סיעות" },
 ] as const;
 
 export function Header() {
-  const t = useTranslations();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-card">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo — rightmost in RTL */}
-        <Link href="/" className="flex items-center gap-2 text-primary font-bold text-lg">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 text-primary font-bold text-lg shrink-0">
           <Scale className="h-5 w-5" />
           <span>שקיפות הכנסת</span>
         </Link>
 
-        {/* Navigation — in RTL, these appear left of logo visually */}
-        <nav className="hidden md:flex items-center gap-6">
-          {NAV_ITEMS.map(({ href, labelKey }) => (
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1">
+          {NAV_ITEMS.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
               className={cn(
-                "text-sm font-medium text-muted-foreground transition-colors",
-                "hover:text-foreground"
+                "relative px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                isActive(href)
+                  ? "text-primary bg-primary/8"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
-              {t(labelKey)}
+              {label}
+              {isActive(href) && (
+                <span className="absolute bottom-1.5 inset-x-4 h-0.5 rounded-full bg-primary" />
+              )}
             </Link>
           ))}
         </nav>
+
+        {/* Mobile hamburger */}
+        <button
+          className="md:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+          onClick={() => setOpen(!open)}
+          aria-label={open ? "סגור תפריט" : "פתח תפריט"}
+        >
+          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </div>
+
+      {/* Mobile nav drawer */}
+      {open && (
+        <div className="md:hidden border-t border-border bg-card px-4 py-3 flex flex-col gap-1">
+          {NAV_ITEMS.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setOpen(false)}
+              className={cn(
+                "px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                isActive(href)
+                  ? "text-primary bg-primary/8"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
     </header>
   );
 }
