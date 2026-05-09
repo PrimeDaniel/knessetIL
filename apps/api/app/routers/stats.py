@@ -48,13 +48,16 @@ async def get_dashboard(request: Request, redis: RedisDep):
             recent_df = hdr_df.sort_values("vote_date", ascending=False).head(10)
             for _, row in recent_df.iterrows():
                 recent_votes.append({
-                    "vote_id":       int(safe(row.get("id")) or 0),
-                    "vote_date":     str(safe(row.get("vote_date", ""))),
+                    "vote_id":        int(safe(row.get("id")) or 0),
+                    "vote_date":      str(safe(row.get("vote_date", ""))),
                     "vote_item_dscr": safe(row.get("vote_item_dscr", "")),
-                    "is_accepted":   bool(int(safe(row.get("is_accepted")) or 0)),
-                    "total_for":     int(safe(row.get("total_for")) or 0),
-                    "total_against": int(safe(row.get("total_against")) or 0),
-                    "total_abstain": int(safe(row.get("total_abstain")) or 0),
+                    "sess_item_dscr": safe(row.get("sess_item_dscr", "")),
+                    "vote_type":      int(safe(row.get("vote_type")) or 0),
+                    "session_num":    int(safe(row.get("session_num")) or 0),
+                    "is_accepted":    bool(int(safe(row.get("is_accepted")) or 0)),
+                    "total_for":      int(safe(row.get("total_for")) or 0),
+                    "total_against":  int(safe(row.get("total_against")) or 0),
+                    "total_abstain":  int(safe(row.get("total_abstain")) or 0),
                 })
 
         # Recent bills (last 10 by PublicationDate) — PascalCase columns
