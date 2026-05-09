@@ -23,6 +23,7 @@ interface VoteBreakdownBarProps {
   totalAbstain: number;
   className?: string;
   showLabels?: boolean;
+  compact?: boolean;
 }
 
 const COLORS = {
@@ -43,6 +44,7 @@ export function VoteBreakdownBar({
   totalAbstain,
   className,
   showLabels = true,
+  compact = false,
 }: VoteBreakdownBarProps) {
   const total = totalFor + totalAgainst + totalAbstain || 1;
 
@@ -53,9 +55,9 @@ export function VoteBreakdownBar({
   ];
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn(compact ? "" : "space-y-3", className)}>
       {/* Stacked percentage bar */}
-      <div className="flex h-8 w-full overflow-hidden rounded-full border border-border">
+      <div className={cn("flex w-full overflow-hidden rounded-full border border-border", compact ? "h-2.5" : "h-8")}>
         {data.map((d) => (
           <div
             key={d.name}
