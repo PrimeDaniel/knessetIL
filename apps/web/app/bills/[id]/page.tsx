@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -28,9 +27,8 @@ function statusAccentBar(statusId: number) {
   return "bg-gradient-to-l from-primary to-blue-400";
 }
 
-export default function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const billId = parseInt(id, 10);
+export default function BillDetailPage({ params }: { params: { id: string } }) {
+  const billId = parseInt(params.id, 10);
 
   const { data: bill, isLoading, isError } = useBill(billId);
   const { data: voteDetail, isLoading: voteLoading } = useBillVotes(billId);
