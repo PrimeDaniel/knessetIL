@@ -51,13 +51,18 @@ async def get_or_set(
     """
     Cache-aside: read from Redis, fall back to factory(), write result.
     factory() must return a JSON-serialisable object.
+    Degrades gracefully if Redis is unavailable — requests still succeed, just uncached.
     """
-    cached = await redis.get(key)
-    if cached is not None:
-        logger.debug("Cache HIT: %s", key)
-        return json.loads(cached)
+    try:
+        cached = await redis.get(key)
+        if cached is not None:
+            logger.debug("Cache HIT: %s", key)
+            return json.loads(cached)
+        logger.debug("Cache MISS: %s", key)
+    except Exception as exc:
+        logger.warning("Redis unavailable, bypassing cache for %s: %s", key, exc)
+        return await factory()
 
-    logger.debug("Cache MISS: %s", key)
     result = await factory()
     try:
         await redis.setex(key, ttl, json.dumps(result, default=str, ensure_ascii=False))
