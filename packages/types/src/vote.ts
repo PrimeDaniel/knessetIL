@@ -13,7 +13,8 @@ export interface VoteResult {
   vote_time: string | null;
   vote_item_id: number;
   vote_item_dscr: string; // Hebrew description of what was voted on
-  vote_type: string | null;
+  sess_item_dscr: string; // Hebrew — broader session/topic context (bill name etc.)
+  vote_type: number | null;
   is_accepted: boolean;
   total_for: number;
   total_against: number;
@@ -49,6 +50,13 @@ export interface PartyVoteBreakdown {
 export interface VoteDetail extends VoteResult {
   party_breakdown: PartyVoteBreakdown[];
   mk_votes: MKVoteRecord[];
+}
+
+export interface MKVoteHistoryItem {
+  vote_id: number;
+  vote_date: string;
+  vote_item_dscr: string;
+  mk_decision: VoteDecision;
 }
 
 export interface VoteListParams {
