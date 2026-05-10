@@ -38,6 +38,7 @@ import type {
   BillDetail,
   VoteResult,
   VoteDetail,
+  MKVoteHistoryItem,
   MKProfile,
   MKStats,
   Faction,
@@ -85,7 +86,7 @@ export const membersApi = {
     apiFetch<MKStats>(`/api/v1/members/${mkId}/stats`),
 
   getVotes: (mkId: number, page = 1, limit = 20) =>
-    apiFetch<PaginatedResponse<VoteResult>>(
+    apiFetch<PaginatedResponse<MKVoteHistoryItem>>(
       `/api/v1/members/${mkId}/votes?page=${page}&limit=${limit}`
     ),
 };
