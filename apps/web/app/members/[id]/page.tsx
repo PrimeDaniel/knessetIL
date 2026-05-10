@@ -169,7 +169,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         <section className="mb-6 rounded-lg border border-border bg-card p-4">
           <h2 className="mb-4 text-sm font-semibold">שיעור מרד</h2>
           <div className="flex justify-center">
-            <RebellionRateGauge rate={stats?.rebellion_rate ?? null} size={160} />
+            <RebellionRateGauge rate={stats?.rebellion_rate ?? null} size="lg" />
           </div>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             % הצבעות נגד עמדת הסיעה

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { membersApi } from "@/lib/api-client";
-import type { MKListParams, MKVoteHistoryItem } from "@knesset/types";
+import type { MKListParams } from "@knesset/types";
 
 export const memberKeys = {
   all: ["members"] as const,

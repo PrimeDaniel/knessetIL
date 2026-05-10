@@ -3,7 +3,22 @@
     "allow": [
       "Bash(dir *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/api/v1/bills)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\GeneralRepos\\\\knessetIL\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(pnpm -F @knesset/web typecheck)",
+      "WebFetch(domain:localhost)",
+      "Bash(python -c ' *)",
+      "WebFetch(domain:main.knesset.gov.il)",
+      "WebFetch(domain:knesset.gov.il)",
+      "WebSearch",
+      "WebFetch(domain:oknesset-api.readthedocs.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:production.oknesset.org)",
+      "Bash(python -m json.tool)",
+      "Bash(python *)",
+      "WebFetch(domain:oknesset.org)",
+      "Bash(venv/Scripts/python -c ' *)"
     ]
   }
 }
