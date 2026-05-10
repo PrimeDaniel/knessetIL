@@ -63,8 +63,12 @@ def _build_profile(row: pd.Series, factions_df: pd.DataFrame) -> dict:
         latest = max(active, key=lambda h: h["start_date"])
         current_faction = {"id": latest["faction_id"], "name": latest["faction_name"] or "", "knesset_num": latest["knesset_num"]}
 
+    raw_person_id = _safe(row.get("PersonID"))
+    person_id = int(raw_person_id) if raw_person_id is not None else None
+
     return {
         "mk_individual_id":             mk_id,
+        "person_id":                    person_id,
         "mk_individual_name":           _safe(row.get("mk_individual_name", "")),
         "mk_individual_name_eng":       _safe(row.get("mk_individual_name_eng", "")),
         "mk_individual_first_name":     _safe(row.get("mk_individual_first_name", "")),
