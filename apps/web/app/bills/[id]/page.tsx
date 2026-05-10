@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
+import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { Skeleton } from "@/components/shared/SkeletonCard";
 import { useBill, useBillVotes } from "@/hooks/useBills";
 import { formatDateHe, cn } from "@/lib/utils";
@@ -170,6 +171,16 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
                     totalAgainst={voteDetail.total_against}
                     totalAbstain={voteDetail.total_abstain}
                   />
+                  {voteDetail.party_breakdown && voteDetail.party_breakdown.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">הצבעה לפי סיעה</p>
+                      <p className="text-[11px] text-muted-foreground mb-2">לחצו על סיעה כדי לראות את עמדת כל חבר כנסת</p>
+                      <FactionVotePanel
+                        partyBreakdown={voteDetail.party_breakdown}
+                        mkVotes={voteDetail.mk_votes}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               {!voteLoading && !voteDetail && (
