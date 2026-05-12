@@ -42,6 +42,7 @@ import type {
   MKProfile,
   MKStats,
   Faction,
+  FactionDetail,
   FactionCohesionData,
   DashboardStats,
   BillListParams,
@@ -103,7 +104,7 @@ export const partiesApi = {
   },
 
   get: (factionId: number) =>
-    apiFetch<Faction>(`/api/v1/parties/${factionId}`),
+    apiFetch<FactionDetail>(`/api/v1/parties/${factionId}`),
 
   getCohesion: (factionId: number) =>
     apiFetch<FactionCohesionData>(`/api/v1/parties/${factionId}/cohesion`),

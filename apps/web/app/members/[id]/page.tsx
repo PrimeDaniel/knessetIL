@@ -5,7 +5,6 @@ import Image from "next/image";
 import { ArrowRight, Mail, Phone, ExternalLink } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { RebellionRateGauge } from "@/components/charts/RebellionRateGauge";
 import { VotingHistoryTable } from "@/components/members/VotingHistoryTable";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { useMember, useMemberStats } from "@/hooks/useMembers";
@@ -83,7 +82,6 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
                 fill
                 className="object-cover"
                 sizes="80px"
-                unoptimized
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
@@ -150,31 +148,16 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         {stats && (
           <section className="mb-6">
             <h2 className="mb-3 text-sm font-semibold">סטטיסטיקות</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <StatItem label="הצעות חוק" value={stats.bills_proposed} />
               <StatItem label="הצבעות" value={stats.total_votes.toLocaleString("he-IL")} />
               <StatItem
                 label="נוכחות"
                 value={stats.attendance_rate != null ? `${Math.round(stats.attendance_rate * 100)}%` : "—"}
               />
-              <StatItem
-                label="מרד"
-                value={stats.rebellion_rate != null ? `${Math.round(stats.rebellion_rate * 100)}%` : "—"}
-              />
             </div>
           </section>
         )}
-
-        {/* Rebellion gauge */}
-        <section className="mb-6 rounded-lg border border-border bg-card p-4">
-          <h2 className="mb-4 text-sm font-semibold">שיעור מרד</h2>
-          <div className="flex justify-center">
-            <RebellionRateGauge rate={stats?.rebellion_rate ?? null} size="lg" />
-          </div>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            % הצבעות נגד עמדת הסיעה
-          </p>
-        </section>
 
         {/* Faction history */}
         {mk.faction_history.length > 0 && (
