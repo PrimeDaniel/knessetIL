@@ -25,7 +25,10 @@ import pandas as pd
 import redis.asyncio as aioredis
 
 from app.services import cache_service as cache
-from app.services.oknesset_client import fetch_bills_data, fetch_all_mk_data, fetch_v4, fetch_v4_bills_page
+from app.services.oknesset_client import (
+    fetch_bills_data, fetch_all_mk_data, fetch_v4,
+    fetch_v4_bills_page, fetch_v4_bill_detail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,55 @@ STATUS_MAP: dict[int, str] = {
     13: "הפך לחוק",
 }
 
+
+# OData v4 uses status IDs 100-180; map to canonical CSV IDs (1-13) for frontend compat
+V4_TO_CANONICAL_STATUS: dict[int, int] = {
+    118: 13,  # התקבלה בקריאה שלישית → הפך לחוק
+    141: 4,   # הונחה לקריאה ראשונה
+    111: 4,   # לדיון קראת קריאה ראשונה
+    106: 4,   # בוועדת הכנסת לקביעת ועדה
+    109: 4,   # אושרה לקריאה ראשונה
+    167: 4,   # אושרה לקריאה ראשונה
+    101: 5,   # הכנה לקריאה ראשונה → בוועדה
+    108: 5,
+    113: 5,   # הכנה לקריאה שנייה-שלישית
+    115: 5,   # הוחזרה לוועדה
+    130: 5,   # הונחה לקריאה שנייה-שלישית
+    131: 5,   # הונחה לקריאה שלישית
+    142: 5,   # בוועדת הכנסת
+    178: 5,   # אושרה לקריאה שנייה-שלישית
+    179: 5,
+    104: 3,   # הונחה לדיון מוקדם
+    150: 3,
+    181: 3,
+    114: 2,   # לדיון קריאה שנייה-שלישית
+    117: 2,
+    110: 7,   # בקשה לדין רציפות נדחתה
+    120: 7,
+    140: 7,   # להסרה מסדר היום
+    143: 7,
+    176: 7,
+    177: 7,   # נעצרה → נדחה
+    122: 11,  # מוזגה → אוחד
+    126: 11,
+    169: 11,
+    124: 12,  # הוסבה → שונה שם
+}
+
+# Reverse: canonical filter-bar IDs → OData v4 status IDs (OR logic in query)
+CANONICAL_TO_V4_STATUS: dict[int, list[int]] = {
+    2:  [101, 108, 114, 117],
+    3:  [104, 150, 181],
+    4:  [106, 109, 111, 141, 167],
+    5:  [101, 108, 113, 115, 130, 131, 142, 178, 179],
+    6:  [118],
+    7:  [110, 120, 140, 143, 176, 177],
+    8:  [177],
+    9:  [140, 143, 177],
+    11: [122, 126, 169],
+    12: [124],
+    13: [118],
+}
 
 _TTL_V4_BILLS_LIST   = 1800   # 30 min
 _TTL_V4_BILLS_DETAIL = 3600   # 1 h  — a bill's status can change
@@ -123,18 +175,41 @@ def _build_init_map(init_df: pd.DataFrame, mk_df: pd.DataFrame) -> dict[int, lis
 
 
 def _v4_row_to_bill(row: dict) -> dict:
-    """Convert a KNS_Bill OData v4 row to the canonical bill dict shape."""
-    status_id = int(row.get("StatusID") or 0)
+    """Convert a KNS_Bill OData v4 row to the canonical bill dict shape.
+
+    When ``$expand=KNS_BillInitiator($expand=KNS_Person)`` is used, the
+    initiator names are extracted inline — no separate join needed.
+    """
+    raw_status_id = int(row.get("StatusID") or 0)
+    canonical_status_id = V4_TO_CANONICAL_STATUS.get(raw_status_id, raw_status_id)
+    status_desc = STATUS_MAP.get(canonical_status_id, f"סטטוס {raw_status_id}")
     pub_date = row.get("PublicationDate") or row.get("LastUpdatedDate")
     if pub_date:
         pub_date = str(pub_date)[:10]
+
+    # Extract initiators from expanded navigation property
+    initiators: list[dict] = []
+    for init_row in (row.get("KNS_BillInitiator") or []):
+        if not init_row.get("IsInitiator", True):
+            continue
+        person = init_row.get("KNS_Person") or {}
+        last = (person.get("LastName") or "").strip()
+        first = (person.get("FirstName") or "").strip()
+        mk_name = f"{first} {last}".strip() if (first or last) else ""
+        initiators.append({
+            "mk_individual_id": int(person.get("Id") or 0),
+            "mk_name":          mk_name or f"PersonID:{init_row.get('PersonID', '?')}",
+            "mk_name_eng":      "",
+            "faction_name":     None,
+        })
+
     return {
-        "bill_id":          int(row.get("BillID") or 0),
+        "bill_id":          int(row.get("BillID") or row.get("Id") or 0),
         "knesset_num":      int(row.get("KnessetNum") or 0),
         "name":             (row.get("Name") or "").strip(),
         "name_eng":         None,
-        "status_id":        status_id,
-        "status_desc":      STATUS_MAP.get(status_id, f"סטטוס {status_id}"),
+        "status_id":        canonical_status_id,
+        "status_desc":      status_desc,
         "sub_type_id":      int(row["SubTypeID"]) if row.get("SubTypeID") is not None else None,
         "sub_type_desc":    row.get("SubTypeDesc"),
         "union_type_id":    None,
@@ -142,7 +217,7 @@ def _v4_row_to_bill(row: dict) -> dict:
         "publication_num":  int(row["PrivateNumber"]) if row.get("PrivateNumber") is not None else None,
         "summary_law":      row.get("SummaryLaw"),
         "is_continuation":  bool(row.get("IsContinuationBill", False)),
-        "initiators":       [],  # KNS_BillInitiator join not implemented for v4 yet
+        "initiators":       initiators,
     }
 
 
@@ -247,10 +322,17 @@ async def list_bills(redis: aioredis.Redis, page: int = 1, limit: int = 20,
 
 
 async def get_bill(bill_id: int, redis: aioredis.Redis) -> dict | None:
+    """Fetch a single bill detail.  Tries OData v4 first (fast, with initiators),
+    then falls back to CSV for historical bills not in v4."""
     cache_key = f"bills:detail:{bill_id}"
 
     async def factory() -> dict | None:
-        # Try CSV first (covers Knesset ≤ 24)
+        # Try OData v4 first (covers K25+ and has $expand for initiators)
+        v4_row = await fetch_v4_bill_detail(bill_id)
+        if v4_row:
+            return _v4_row_to_bill(v4_row)
+
+        # Fallback to CSV (covers Knesset ≤ 24)
         frames = await fetch_bills_data()
         df = frames.get("kns_bill", pd.DataFrame())
         if not df.empty:
@@ -262,15 +344,6 @@ async def get_bill(bill_id: int, redis: aioredis.Redis) -> dict | None:
                 mk_df = mk_frames.get("mk_individual", pd.DataFrame())
                 init_map = _build_init_map(bill_inits, mk_df)
                 return _row_to_bill(rows.iloc[0], init_map.get(bill_id, []))
-
-        # Not in CSV → try OData v4 (Knesset 25+ bill)
-        try:
-            data = await fetch_v4("KNS_Bill", params={"$filter": f"BillID eq {bill_id}"})
-            v4_rows = data.get("value", [])
-            if v4_rows:
-                return _v4_row_to_bill(v4_rows[0])
-        except Exception as exc:
-            logger.warning("get_bill: OData v4 fallback failed for bill_id=%d: %s", bill_id, exc)
 
         return None
 

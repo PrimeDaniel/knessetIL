@@ -22,6 +22,7 @@ from slowapi.util import get_remote_address
 from app.config import get_settings
 from app.routers import bills, members, parties, stats, votes
 from app.tasks.sync import run_sync
+from app.services.oknesset_client import shutdown_http_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,7 +54,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     scheduler.shutdown(wait=False)
-    logger.info("Scheduler shut down")
+    await shutdown_http_client()
+    logger.info("Scheduler and HTTP client shut down")
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────

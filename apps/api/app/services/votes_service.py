@@ -44,6 +44,7 @@ from app.services.oknesset_client import (
     fetch_v4_bill_item_ids,
     fetch_v4_mk_faction_map,
     fetch_v4_vote_results,
+    fetch_v4_vote_with_results,
     fetch_v4_votes_page,
     fetch_vote_data,
     fetch_vote_mk_decisions,
@@ -267,11 +268,8 @@ async def list_votes_v4(
     """
     List votes from the Knesset OData v4 API (Knesset 25+, current data).
 
-    For each vote on the page, the per-MK results are fetched in parallel so
-    that aggregate totals (total_for, total_against, …) and ``is_accepted`` are
-    computed correctly.  This means up to *limit* concurrent requests to the
-    Knesset API on a cache miss — acceptable given that results are cached for
-    15 minutes.
+    Uses ``$expand=VoteResults`` so that vote headers and all per-MK results
+    are fetched in a single HTTP request (previously required N+1 requests).
 
     If *is_accepted* is specified, filtering is applied **after** totals are
     computed.  This may result in fewer than *limit* items when the filter
@@ -288,7 +286,7 @@ async def list_votes_v4(
     )
 
     async def factory() -> dict:
-        # 1. Fetch the page of vote headers
+        # Single request: vote headers + per-MK results via $expand
         envelope = await fetch_v4_votes_page(page=page, limit=limit)
         vote_rows = envelope.get("value", [])
         total = int(envelope.get("@odata.count") or 0)
@@ -305,21 +303,15 @@ async def list_votes_v4(
                 "cached_at": _now_iso(),
             }
 
-        # 2. Fetch per-MK results for every vote in parallel
-        vote_ids = [int(r.get("Id") or 0) for r in vote_rows]
-        results_list: list[list[dict]] = await asyncio.gather(
-            *[fetch_v4_vote_results(vid) for vid in vote_ids],
-            return_exceptions=False,
-        )
-
-        # 3. Build vote dicts with computed totals
+        # Build vote dicts — results are already inline from $expand
         votes: list[dict] = []
-        for row, results in zip(vote_rows, results_list):
+        for row in vote_rows:
             vote_dict = _v4_row_to_vote(row)
+            results = row.get("VoteResults", [])
             _compute_v4_totals(vote_dict, results)
             votes.append(vote_dict)
 
-        # 4. Apply is_accepted filter if requested
+        # Apply is_accepted filter if requested
         if is_accepted is not None:
             votes = [v for v in votes if v["is_accepted"] == is_accepted]
 
@@ -342,66 +334,37 @@ async def get_vote_detail_v4(vote_id: int, redis: aioredis.Redis) -> dict | None
     """
     Fetch a full ``VoteDetail`` from the Knesset OData v4 API.
 
-    Fetches the vote header, per-MK results, and the faction map concurrently,
-    then assembles the canonical response shape.  Returns ``None`` if the vote
-    is not found.
+    Uses ``$expand=VoteResults`` to fetch the vote header and all per-MK
+    results in a single HTTP request.  Fetches the faction map concurrently.
+    Returns ``None`` if the vote is not found.
     """
     cache_key = f"votes:v4:detail:{vote_id}"
 
     async def factory() -> dict | None:
-        # Fetch results and faction map concurrently; the vote header comes
-        # bundled with the result set (we only need the KNS_PlenumVote row for
-        # header fields not present in KNS_PlenumVoteResult).
-        results, faction_map = await asyncio.gather(
-            fetch_v4_vote_results(vote_id),
+        # Single request for vote + results, plus faction map concurrently
+        vote_row, faction_map = await asyncio.gather(
+            fetch_v4_vote_with_results(vote_id),
             _get_mk_faction_map(redis),
             return_exceptions=False,
         )
 
-        if not results:
-            # No results → vote doesn't exist in the v4 API
-            logger.warning("get_vote_detail_v4: no results for vote_id=%d", vote_id)
+        if not vote_row:
+            logger.warning("get_vote_detail_v4: no vote found for vote_id=%d", vote_id)
             return None
 
-        # Derive the vote header from the first result row (all share the same
-        # SessionID, ItemID, VoteDate) and supplement with a KNS_PlenumVote
-        # fetch for the title.
-        first = results[0]
-        vote_date_raw = (first.get("VoteDate") or "")
-        # VoteDate in KNS_PlenumVoteResult is sometimes "YYYY-MM-DDT00:00:00"
-        vote_date, _ = _parse_v4_datetime(vote_date_raw)
-        if not vote_date and vote_date_raw:
-            # Plain date string fallback (YYYY-MM-DD)
-            vote_date = str(vote_date_raw)[:10]
-
-        # Fetch the vote header for title/time — best-effort, non-fatal
-        vote_time: str | None = None
-        vote_item_dscr = ""
-        sess_item_dscr = ""
-        try:
-            header_data = await fetch_v4(
-                "KNS_PlenumVote",
-                params={"$filter": f"Id eq {vote_id}"},
-            )
-            header_rows = header_data.get("value", [])
-            if header_rows:
-                h = header_rows[0]
-                _, vote_time = _parse_v4_datetime(h.get("VoteDateTime"))
-                vote_item_dscr = (h.get("VoteTitle") or h.get("VoteSubject") or "").strip()
-                sess_item_dscr = (h.get("VoteSubject") or "").strip()
-        except Exception as exc:
-            logger.warning(
-                "get_vote_detail_v4: could not fetch vote header for %d: %s", vote_id, exc
-            )
+        results = vote_row.get("VoteResults", [])
+        vote_date, vote_time = _parse_v4_datetime(vote_row.get("VoteDateTime"))
+        vote_item_dscr = (vote_row.get("VoteTitle") or vote_row.get("VoteSubject") or "").strip()
+        sess_item_dscr = (vote_row.get("VoteSubject") or "").strip()
 
         # Build the base dict
         vote_dict: dict = {
             "id":             vote_id,
             "knesset_num":    25,
-            "session_id":     int(first.get("SessionID") or 0),
+            "session_id":     int(vote_row.get("SessionID") or 0),
             "vote_date":      vote_date,
             "vote_time":      vote_time,
-            "vote_item_id":   int(first.get("ItemID") or 0),
+            "vote_item_id":   int(vote_row.get("ItemID") or 0),
             "vote_item_dscr": vote_item_dscr,
             "sess_item_dscr": sess_item_dscr,
             "vote_type":      0,
@@ -613,23 +576,22 @@ async def get_vote_detail(vote_id: int, redis: aioredis.Redis) -> dict | None:
 
 async def get_votes_for_bill(bill_id: int, redis: aioredis.Redis) -> dict | None:
     """
-    Find the most recent vote for a bill via the KNS_PlItem → KNS_PlenumVote chain.
+    Find the most recent vote for a bill.
 
     Lookup strategy (each step falls through to the next on failure):
-      1. KNS_PlItem?$filter=BillID eq {bill_id}  → ItemID list
+      1. KNS_PlmSessionItem?$filter=ItemID eq {bill_id}  → candidate ItemIDs
       2. KNS_PlenumVote?$filter=ItemID eq {item_id}  → vote headers (v4)
-      3. Direct ItemID == BillID fallback (some IDs coincide by accident)
-      4. CSV: filter view_vote_rslts_hdr_approved where vote_item_id in ItemIDs (K24)
+      3. CSV: filter view_vote_rslts_hdr_approved where vote_item_id matches
 
     Returns a full ``VoteDetail`` dict or ``None`` if no vote is found.
     """
     cache_key = f"bills:votes:{bill_id}"
 
     async def factory() -> dict | None:
-        # ── Step 1: bill → plenum item IDs ───────────────────────────────────
+        # ── Step 1: find candidate item IDs ──────────────────────────────────
         item_ids = await fetch_v4_bill_item_ids(bill_id)
 
-        # ── Step 2: plenum item IDs → vote rows (v4) ─────────────────────────
+        # ── Step 2: item IDs → vote rows (v4), search all candidates ─────────
         vote_rows: list[dict] = []
         for item_id in item_ids:
             try:
@@ -647,39 +609,23 @@ async def get_votes_for_bill(bill_id: int, redis: aioredis.Redis) -> dict | None
                     "get_votes_for_bill: votes for item_id=%d failed: %s", item_id, exc
                 )
 
-        # ── Step 3: fallback — try BillID directly as ItemID ─────────────────
-        if not vote_rows:
-            try:
-                data = await fetch_v4(
-                    "KNS_PlenumVote",
-                    params={
-                        "$filter": f"ItemID eq {bill_id}",
-                        "$orderby": "VoteDateTime desc",
-                        "$top": "5",
-                    },
-                )
-                vote_rows = data.get("value", [])
-            except Exception:
-                pass
-
-        # ── Step 4: build VoteDetail from the best v4 vote ───────────────────
+        # ── Step 3: build VoteDetail from the best v4 vote ───────────────────
         if vote_rows:
             vote_rows.sort(key=lambda r: r.get("VoteDateTime") or "", reverse=True)
             vote_id = int(vote_rows[0].get("Id") or 0)
             if vote_id:
                 return await get_vote_detail_v4(vote_id, redis)
 
-        # ── Step 5: CSV fallback for K24 bills ───────────────────────────────
-        if item_ids:
-            vote_frames = await fetch_vote_data()
-            csv_df = vote_frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
-            if not csv_df.empty and "vote_item_id" in csv_df.columns:
-                matching = csv_df[csv_df["vote_item_id"].isin(item_ids)]
-                if not matching.empty:
-                    latest = matching.sort_values("vote_date", ascending=False).iloc[0]
-                    vote_id = int(_safe(latest.get("vote_id")) or 0)
-                    if vote_id:
-                        return await get_vote_detail(vote_id, redis)
+        # ── Step 4: CSV fallback for K24 bills ───────────────────────────────
+        vote_frames = await fetch_vote_data()
+        csv_df = vote_frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
+        if not csv_df.empty and "vote_item_id" in csv_df.columns:
+            matching = csv_df[csv_df["vote_item_id"].isin(item_ids)]
+            if not matching.empty:
+                latest = matching.sort_values("vote_date", ascending=False).iloc[0]
+                vote_id = int(_safe(latest.get("vote_id")) or 0)
+                if vote_id:
+                    return await get_vote_detail(vote_id, redis)
 
         return None
 

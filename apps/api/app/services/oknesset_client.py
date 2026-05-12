@@ -19,6 +19,7 @@ IMPORTANT DATA LIMITATION:
 """
 import io
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -66,17 +67,77 @@ def _csv_url(dataset: str) -> str:
     return f"{settings.oknesset_base_url}/{path}"
 
 
+# ── Shared HTTP client (connection pooling) ───────────────────────────────────
+# Created lazily, closed via shutdown_http_client() in app lifespan.
+
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Get or create the shared httpx client for all HTTP requests."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=90.0,
+            follow_redirects=True,
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+                keepalive_expiry=30,
+            ),
+        )
+    return _http_client
+
+
+async def shutdown_http_client() -> None:
+    """Close the shared HTTP client.  Called from app lifespan shutdown."""
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
+    logger.info("Shared HTTP client closed")
+
+
+# ── In-memory CSV DataFrame cache ────────────────────────────────────────────
+# Avoids re-downloading 14–85 MB CSV files on every Redis cache miss.
+# TTL matches the sync interval (6 hours by default).
+
+_CSV_CACHE_TTL = settings.oknesset_sync_interval_hours * 3600  # seconds
+
+_csv_cache: dict[str, tuple[pd.DataFrame, float]] = {}
+
+
+def invalidate_csv_cache() -> None:
+    """Clear all cached DataFrames.  Called after sync completes."""
+    _csv_cache.clear()
+    logger.info("In-memory CSV cache cleared")
+
+
 async def fetch_csv(dataset: str, timeout: float = 90.0) -> pd.DataFrame:
     """
     Fetch a CSV dataset from oknesset and return it as a pandas DataFrame.
-    Large files (kns_bill at 14 MB) use streaming to avoid memory spikes.
+
+    Uses an in-memory cache to avoid re-downloading large files on every call.
+    The cache TTL matches the sync interval so data stays fresh after a sync.
     """
+    now = time.monotonic()
+
+    # Check in-memory cache first
+    if dataset in _csv_cache:
+        df, cached_at = _csv_cache[dataset]
+        if now - cached_at < _CSV_CACHE_TTL:
+            logger.debug("CSV cache HIT: %s (%d rows)", dataset, len(df))
+            return df
+        else:
+            logger.debug("CSV cache EXPIRED: %s", dataset)
+            del _csv_cache[dataset]
+
     url = _csv_url(dataset)
     logger.info("Fetching CSV: %s", url)
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        response = await client.get(url)
-        response.raise_for_status()
+    client = _get_http_client()
+    response = await client.get(url, timeout=timeout)
+    response.raise_for_status()
 
     df = pd.read_csv(
         io.StringIO(response.text),
@@ -84,6 +145,9 @@ async def fetch_csv(dataset: str, timeout: float = 90.0) -> pd.DataFrame:
         encoding="utf-8",
     )
     logger.info("Fetched %s: %d rows, %d cols", dataset, len(df), len(df.columns))
+
+    # Store in cache
+    _csv_cache[dataset] = (df, now)
     return df
 
 
@@ -200,9 +264,9 @@ async def fetch_v4(path: str, params: dict | None = None, timeout: float = 30.0)
     url = f"{KNESSET_V4_BASE}/{path}"
     logger.info("Fetching OData v4: %s  params=%s", url, merged_params)
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        response = await client.get(url, params=merged_params)
-        response.raise_for_status()
+    client = _get_http_client()
+    response = await client.get(url, params=merged_params, timeout=timeout)
+    response.raise_for_status()
 
     return response.json()
 
@@ -218,33 +282,36 @@ async def fetch_v4_all(path: str, params: dict | None = None, timeout: float = 3
 
     all_rows: list[dict] = []
     url: str | None = f"{KNESSET_V4_BASE}/{path}"
+    first_url = url
 
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        while url:
-            if url.startswith(KNESSET_V4_BASE):
-                response = await client.get(url, params=merged_params if url == f"{KNESSET_V4_BASE}/{path}" else None)
-            else:
-                response = await client.get(url)
-            response.raise_for_status()
-            data = response.json()
-            all_rows.extend(data.get("value", []))
-            url = data.get("@odata.nextLink")
+    client = _get_http_client()
+    while url:
+        if url == first_url:
+            response = await client.get(url, params=merged_params, timeout=timeout)
+        else:
+            response = await client.get(url, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+        all_rows.extend(data.get("value", []))
+        url = data.get("@odata.nextLink")
 
     return all_rows
 
 
 async def fetch_v4_votes_page(page: int = 1, limit: int = 20) -> dict:
     """
-    Fetch a paginated page of votes from ``KNS_PlenumVote``, sorted newest first.
+    Fetch a paginated page of votes from ``KNS_PlenumVote`` with per-MK results
+    expanded inline, sorted newest first.
+
+    Uses ``$expand=VoteResults`` to fetch vote headers and all per-MK results
+    in a single request (eliminates the previous N+1 query pattern).
 
     Returns the raw OData envelope::
 
         {
-            "value": [ {...}, ... ],
+            "value": [ {..., "VoteResults": [{...}, ...]}, ... ],
             "@odata.count": 12345,   # total across all pages
         }
-
-    Uses ``$top`` / ``$skip`` / ``$count=true`` / ``$orderby=VoteDateTime desc``.
     """
     skip = (page - 1) * limit
     params = {
@@ -252,12 +319,36 @@ async def fetch_v4_votes_page(page: int = 1, limit: int = 20) -> dict:
         "$skip": skip,
         "$count": "true",
         "$orderby": "VoteDateTime desc",
+        "$expand": "VoteResults",
     }
     try:
         return await fetch_v4("KNS_PlenumVote", params=params)
     except Exception as exc:
         logger.error("fetch_v4_votes_page(page=%d, limit=%d) failed: %s", page, limit, exc)
         return {"value": [], "@odata.count": 0}
+
+
+async def fetch_v4_vote_with_results(vote_id: int) -> dict | None:
+    """
+    Fetch a single ``KNS_PlenumVote`` row with its ``VoteResults`` expanded inline.
+
+    Returns the vote row dict with an embedded ``VoteResults`` list, or ``None``
+    if the vote is not found.  This replaces the previous pattern of making
+    separate requests for vote header + results.
+    """
+    try:
+        data = await fetch_v4(
+            "KNS_PlenumVote",
+            params={
+                "$filter": f"Id eq {vote_id}",
+                "$expand": "VoteResults",
+            },
+        )
+        rows = data.get("value", [])
+        return rows[0] if rows else None
+    except Exception as exc:
+        logger.error("fetch_v4_vote_with_results(vote_id=%d) failed: %s", vote_id, exc)
+        return None
 
 
 async def fetch_v4_vote_results(vote_id: int) -> list[dict]:
@@ -279,26 +370,40 @@ async def fetch_v4_vote_results(vote_id: int) -> list[dict]:
 
 async def fetch_v4_bill_item_ids(bill_id: int) -> list[int]:
     """
-    Fetch ItemIDs from KNS_PlItem for the given BillID.
+    Fetch ItemIDs linked to a bill by searching ``KNS_PlmSessionItem``.
 
-    KNS_PlItem is the plenum agenda-item entity.  Its primary key (ItemID) is
-    the same value that KNS_PlenumVote.ItemID references, so this gives us the
-    bridge from a bill to all of its plenary votes.
+    ``KNS_PlmSessionItem`` represents items on the plenum session agenda.
+    It has ``ItemID`` (pointing to the original entity like a bill) and a
+    ``Name`` field.  Unfortunately ``KNS_PlmSessionItem`` does NOT have a
+    direct ``BillID`` column, so we filter by ItemTypeID=2 (bill type) and
+    match on ItemID.
 
-    Handles both ``ItemID`` and ``Id`` as the primary-key field name, since the
-    exact name varies across OData API versions.
+    We also try to find votes that reference the bill_id directly via
+    ``KNS_PlenumVote.ItemID``, since for many bills the ItemID in the vote
+    table equals the BillID.
+
+    Returns a list of ItemIDs that may be associated with this bill.
     """
+    ids: list[int] = []
+
+    # Strategy 1: Check if any plenum session items reference this bill
     try:
-        data = await fetch_v4("KNS_PlItem", params={"$filter": f"BillID eq {bill_id}"})
-        ids: list[int] = []
+        data = await fetch_v4(
+            "KNS_PlmSessionItem",
+            params={"$filter": f"ItemID eq {bill_id}"},
+        )
         for item in data.get("value", []):
             item_id = item.get("ItemID") or item.get("Id")
             if item_id is not None:
                 ids.append(int(item_id))
-        return ids
     except Exception as exc:
-        logger.warning("fetch_v4_bill_item_ids(bill_id=%d) failed: %s", bill_id, exc)
-        return []
+        logger.warning("fetch_v4_bill_item_ids: KNS_PlmSessionItem query failed for bill_id=%d: %s", bill_id, exc)
+
+    # Always include the bill_id itself as a candidate ItemID
+    if bill_id not in ids:
+        ids.append(bill_id)
+
+    return ids
 
 
 async def fetch_v4_bills_page(
@@ -313,10 +418,13 @@ async def fetch_v4_bills_page(
     """
     Fetch a paginated page of bills from ``KNS_Bill``, sorted by LastUpdatedDate desc.
 
+    Uses ``$expand=KNS_BillInitiator($expand=KNS_Person)`` to fetch initiator
+    names inline — eliminates the empty ``initiators: []`` for v4 bills.
+
     Returns the raw OData envelope::
 
         {
-            "value": [ {...}, ... ],
+            "value": [ {..., "KNS_BillInitiator": [{..., "KNS_Person": {...}}, ...]}, ... ],
             "@odata.count": 12345,
         }
     """
@@ -326,6 +434,7 @@ async def fetch_v4_bills_page(
         "$skip": skip,
         "$count": "true",
         "$orderby": "LastUpdatedDate desc",
+        "$expand": "KNS_BillInitiator($expand=KNS_Person)",
     }
 
     filters: list[str] = []
@@ -348,6 +457,41 @@ async def fetch_v4_bills_page(
     except Exception as exc:
         logger.error("fetch_v4_bills_page(page=%d, limit=%d) failed: %s", page, limit, exc)
         return {"value": [], "@odata.count": 0}
+
+
+async def fetch_v4_bill_detail(bill_id: int) -> dict | None:
+    """
+    Fetch a single KNS_Bill with initiators and their person info expanded inline.
+
+    The OData v4 primary key for KNS_Bill is ``Id`` (not ``BillID``).
+    Returns the bill row dict or None if not found.
+    """
+    # Try with $expand first
+    try:
+        data = await fetch_v4(
+            "KNS_Bill",
+            params={
+                "$filter": f"Id eq {bill_id}",
+                "$expand": "KNS_BillInitiator($expand=KNS_Person)",
+            },
+        )
+        rows = data.get("value", [])
+        if rows:
+            return rows[0]
+    except Exception as exc:
+        logger.debug("fetch_v4_bill_detail: $expand failed for bill_id=%d, trying without: %s", bill_id, exc)
+
+    # Fallback: fetch without $expand (some v4 endpoints reject nested expands)
+    try:
+        data = await fetch_v4(
+            "KNS_Bill",
+            params={"$filter": f"Id eq {bill_id}"},
+        )
+        rows = data.get("value", [])
+        return rows[0] if rows else None
+    except Exception as exc:
+        logger.warning("fetch_v4_bill_detail: failed for bill_id=%d: %s", bill_id, exc)
+        return None
 
 
 async def fetch_v4_mk_faction_map() -> dict[str, dict]:

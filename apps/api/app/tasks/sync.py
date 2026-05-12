@@ -20,7 +20,8 @@ async def run_sync() -> None:
         from app.deps import get_redis
         import redis.asyncio as aioredis
         from app.services.oknesset_client import (
-            fetch_all_mk_data, fetch_vote_data, fetch_bills_data, fetch_csv
+            fetch_all_mk_data, fetch_vote_data, fetch_bills_data, fetch_csv,
+            invalidate_csv_cache,
         )
         from app.services.cache_service import invalidate_many
 
@@ -31,6 +32,9 @@ async def run_sync() -> None:
             encoding="utf-8",
             decode_responses=True,
         )
+
+        # Clear in-memory DataFrame cache so fresh CSVs are downloaded
+        invalidate_csv_cache()
 
         # Fetch all datasets using corrected URLs (Phase 2 verified paths)
         # mk_individual + mk_individual_factions
@@ -46,14 +50,21 @@ async def run_sync() -> None:
         patterns_to_invalidate = [
             "stats:*",
             "bills:list:*",
+            "bills:v4:list:*",
+            "bills:detail:*",
+            "bills:votes:*",
             "votes:list:*",
+            "votes:v4:list:*",
+            "votes:detail:*",
+            "votes:v4:detail:*",
             "members:list:*",
+            "members:detail:*",
             "parties:list:*",
         ]
         await invalidate_many(patterns_to_invalidate, redis_client)
         await redis_client.aclose()
 
-        logger.info("oknesset CSV sync complete — cache invalidated")
+        logger.info("oknesset CSV sync complete — caches invalidated")
 
     except Exception as exc:
         logger.error("CSV sync failed: %s", exc, exc_info=True)
