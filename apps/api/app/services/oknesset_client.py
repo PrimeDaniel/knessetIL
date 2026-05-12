@@ -277,6 +277,79 @@ async def fetch_v4_vote_results(vote_id: int) -> list[dict]:
         return []
 
 
+async def fetch_v4_bill_item_ids(bill_id: int) -> list[int]:
+    """
+    Fetch ItemIDs from KNS_PlItem for the given BillID.
+
+    KNS_PlItem is the plenum agenda-item entity.  Its primary key (ItemID) is
+    the same value that KNS_PlenumVote.ItemID references, so this gives us the
+    bridge from a bill to all of its plenary votes.
+
+    Handles both ``ItemID`` and ``Id`` as the primary-key field name, since the
+    exact name varies across OData API versions.
+    """
+    try:
+        data = await fetch_v4("KNS_PlItem", params={"$filter": f"BillID eq {bill_id}"})
+        ids: list[int] = []
+        for item in data.get("value", []):
+            item_id = item.get("ItemID") or item.get("Id")
+            if item_id is not None:
+                ids.append(int(item_id))
+        return ids
+    except Exception as exc:
+        logger.warning("fetch_v4_bill_item_ids(bill_id=%d) failed: %s", bill_id, exc)
+        return []
+
+
+async def fetch_v4_bills_page(
+    page: int = 1,
+    limit: int = 20,
+    knesset_num: int | None = None,
+    status_id: int | None = None,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict:
+    """
+    Fetch a paginated page of bills from ``KNS_Bill``, sorted by LastUpdatedDate desc.
+
+    Returns the raw OData envelope::
+
+        {
+            "value": [ {...}, ... ],
+            "@odata.count": 12345,
+        }
+    """
+    skip = (page - 1) * limit
+    params: dict = {
+        "$top": limit,
+        "$skip": skip,
+        "$count": "true",
+        "$orderby": "LastUpdatedDate desc",
+    }
+
+    filters: list[str] = []
+    if knesset_num is not None:
+        filters.append(f"KnessetNum eq {knesset_num}")
+    if status_id is not None:
+        filters.append(f"StatusID eq {status_id}")
+    if search:
+        escaped = search.replace("'", "''")
+        filters.append(f"contains(Name, '{escaped}')")
+    if date_from:
+        filters.append(f"PublicationDate ge {date_from}T00:00:00")
+    if date_to:
+        filters.append(f"PublicationDate le {date_to}T23:59:59")
+    if filters:
+        params["$filter"] = " and ".join(filters)
+
+    try:
+        return await fetch_v4("KNS_Bill", params=params)
+    except Exception as exc:
+        logger.error("fetch_v4_bills_page(page=%d, limit=%d) failed: %s", page, limit, exc)
+        return {"value": [], "@odata.count": 0}
+
+
 async def fetch_v4_mk_faction_map() -> dict[str, dict]:
     """
     Build a ``"LastName_FirstName" -> {faction_id, faction_name}`` lookup for

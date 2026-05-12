@@ -36,11 +36,9 @@ async def get_bill(bill_id: int, redis: RedisDep):
 async def get_bill_votes(bill_id: int, redis: RedisDep):
     """
     Returns the vote detail (party breakdown + MK-by-MK records) for a bill.
-    Note: bill_id and vote_item_id are not the same in oknesset; this is a
-    best-effort lookup by vote_item_id matching bill_id. Phase 2 will add
-    an explicit law_votes join table.
+    Uses KNS_PlItem → KNS_PlenumVote chain to resolve bill → vote correctly.
     """
-    vote = await votes_service.get_vote_detail(bill_id, redis)
+    vote = await votes_service.get_votes_for_bill(bill_id, redis)
     if vote is None:
-        raise HTTPException(status_code=404, detail=f"No vote found for bill {bill_id}")
+        raise HTTPException(status_code=404, detail=f"No vote data found for bill {bill_id}")
     return vote

@@ -137,16 +137,7 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
             {/* Vote breakdown */}
             <section className="rounded-xl border border-border bg-card shadow-card p-5">
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">תוצאת הצבעה</h2>
-              {voteLoading && (
-                <div className="space-y-3">
-                  <Skeleton className="h-8 w-full rounded-full" />
-                  <div className="flex justify-between">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                </div>
-              )}
+              {voteLoading && <VoteCountingLoader />}
               {!voteLoading && voteDetail && (
                 <div className="space-y-4">
                   <div className={cn(
@@ -199,9 +190,10 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
 
 function BillDetailSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
-        <div className="h-1.5 bg-muted w-full" />
+    <div className="space-y-5 animate-fade-in">
+      {/* Hero card */}
+      <div className="rounded-xl border border-primary/10 bg-card shadow-card overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-l from-primary/30 via-blue-400/20 to-indigo-400/30 w-full animate-pulse" />
         <div className="p-6 space-y-4">
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-5 w-3/4" />
@@ -211,7 +203,18 @@ function BillDetailSkeleton() {
             <Skeleton className="h-7 w-28 rounded-lg" />
           </div>
         </div>
+        <div className="px-6 pb-4 flex items-center gap-2 text-xs text-muted-foreground/50">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/40 animate-pulse" />
+          <span>טוען נתוני הצעת חוק</span>
+          <span className="flex gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="inline-block h-1 w-1 rounded-full bg-primary/30 animate-bounce"
+                style={{ animationDelay: `${i * 150}ms` }} />
+            ))}
+          </span>
+        </div>
       </div>
+      {/* Initiators placeholder */}
       <div className="rounded-xl border border-border bg-card shadow-card p-5 space-y-3">
         <Skeleton className="h-3 w-12" />
         <div className="flex gap-2">
@@ -219,6 +222,7 @@ function BillDetailSkeleton() {
           <Skeleton className="h-10 w-28 rounded-lg" />
         </div>
       </div>
+      {/* Vote placeholder */}
       <div className="rounded-xl border border-border bg-card shadow-card p-5 space-y-3">
         <Skeleton className="h-3 w-16" />
         <Skeleton className="h-8 w-full rounded-full" />
@@ -227,6 +231,54 @@ function BillDetailSkeleton() {
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-4 w-16" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function VoteCountingLoader() {
+  return (
+    <div className="space-y-4 py-1">
+      {/* Three-segment animated bar mimicking the vote breakdown being filled in */}
+      <div className="relative h-10 w-full overflow-hidden rounded-full border border-border/60 bg-muted/20">
+        <div className="absolute inset-0 flex">
+          <div className="h-full bg-vote-for/40 animate-pulse" style={{ width: "45%", animationDelay: "0ms" }} />
+          <div className="h-full bg-vote-against/40 animate-pulse" style={{ width: "35%", animationDelay: "180ms" }} />
+          <div className="h-full bg-vote-abstain/35 animate-pulse" style={{ width: "20%", animationDelay: "360ms" }} />
+        </div>
+        {/* RTL-aware sweeping shimmer */}
+        <div className="absolute inset-0 overflow-hidden rounded-full">
+          <div className="h-full w-1/3 bg-gradient-to-l from-transparent via-white/15 to-transparent animate-shimmer" />
+        </div>
+      </div>
+
+      {/* "Counting votes" label + bouncing dots */}
+      <div className="flex items-center justify-between px-1">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-vote-for/70 animate-pulse" />
+          <span>סופר קולות...</span>
+        </span>
+        <span className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="block h-1.5 w-1.5 rounded-full bg-primary/50 animate-bounce"
+              style={{ animationDelay: `${i * 120}ms` }} />
+          ))}
+        </span>
+      </div>
+
+      {/* Ghost faction rows */}
+      <div className="rounded-lg border border-border/50 divide-y divide-border/30 overflow-hidden">
+        {[0.9, 0.65, 0.45].map((opacity, i) => (
+          <div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse"
+            style={{ opacity }}>
+            <div className="h-3 rounded bg-muted" style={{ width: `${60 + i * 20}px` }} />
+            <div className="ms-auto flex gap-4">
+              <div className="h-3 w-6 rounded bg-vote-for/30" />
+              <div className="h-3 w-6 rounded bg-vote-against/25" />
+              <div className="h-3 w-5 rounded bg-vote-abstain/20" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

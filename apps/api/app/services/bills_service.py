@@ -25,7 +25,7 @@ import pandas as pd
 import redis.asyncio as aioredis
 
 from app.services import cache_service as cache
-from app.services.oknesset_client import fetch_bills_data, fetch_all_mk_data
+from app.services.oknesset_client import fetch_bills_data, fetch_all_mk_data, fetch_v4, fetch_v4_bills_page
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,10 @@ STATUS_MAP: dict[int, str] = {
     12: "שונה שם",
     13: "הפך לחוק",
 }
+
+
+_TTL_V4_BILLS_LIST   = 1800   # 30 min
+_TTL_V4_BILLS_DETAIL = 3600   # 1 h  — a bill's status can change
 
 
 def _now_iso() -> str:
@@ -118,10 +122,82 @@ def _build_init_map(init_df: pd.DataFrame, mk_df: pd.DataFrame) -> dict[int, lis
     return init_map
 
 
+def _v4_row_to_bill(row: dict) -> dict:
+    """Convert a KNS_Bill OData v4 row to the canonical bill dict shape."""
+    status_id = int(row.get("StatusID") or 0)
+    pub_date = row.get("PublicationDate") or row.get("LastUpdatedDate")
+    if pub_date:
+        pub_date = str(pub_date)[:10]
+    return {
+        "bill_id":          int(row.get("BillID") or 0),
+        "knesset_num":      int(row.get("KnessetNum") or 0),
+        "name":             (row.get("Name") or "").strip(),
+        "name_eng":         None,
+        "status_id":        status_id,
+        "status_desc":      STATUS_MAP.get(status_id, f"סטטוס {status_id}"),
+        "sub_type_id":      int(row["SubTypeID"]) if row.get("SubTypeID") is not None else None,
+        "sub_type_desc":    row.get("SubTypeDesc"),
+        "union_type_id":    None,
+        "publication_date": pub_date,
+        "publication_num":  int(row["PrivateNumber"]) if row.get("PrivateNumber") is not None else None,
+        "summary_law":      row.get("SummaryLaw"),
+        "is_continuation":  bool(row.get("IsContinuationBill", False)),
+        "initiators":       [],  # KNS_BillInitiator join not implemented for v4 yet
+    }
+
+
+async def list_bills_v4(
+    redis: aioredis.Redis,
+    page: int = 1,
+    limit: int = 20,
+    search: str | None = None,
+    status_id: int | None = None,
+    knesset_num: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict:
+    """List bills from the Knesset OData v4 API (Knesset 25+, current data)."""
+    cache_key = cache.make_list_key(
+        "bills:v4:list",
+        page=page, limit=limit, search=search, status_id=status_id,
+        knesset_num=knesset_num, date_from=date_from, date_to=date_to,
+    )
+
+    async def factory() -> dict:
+        envelope = await fetch_v4_bills_page(
+            page=page,
+            limit=limit,
+            knesset_num=knesset_num if knesset_num is not None else 25,
+            status_id=status_id,
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        bill_rows = envelope.get("value", [])
+        total = int(envelope.get("@odata.count") or 0)
+        bills = [_v4_row_to_bill(r) for r in bill_rows]
+        total_pages = math.ceil(total / limit) if total else 1
+        return {
+            "data": bills,
+            "pagination": {"page": page, "limit": limit, "total": total, "total_pages": total_pages},
+            "cached_at": _now_iso(),
+        }
+
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_BILLS_LIST, redis)
+
+
 async def list_bills(redis: aioredis.Redis, page: int = 1, limit: int = 20,
                      search: str | None = None, status_id: int | None = None,
                      knesset_num: int | None = None,
                      date_from: str | None = None, date_to: str | None = None) -> dict:
+    # Route to OData v4 for Knesset 25+ (or when no specific knesset is asked)
+    if knesset_num is None or knesset_num >= 25:
+        return await list_bills_v4(
+            redis, page=page, limit=limit, search=search, status_id=status_id,
+            knesset_num=knesset_num, date_from=date_from, date_to=date_to,
+        )
+
+    # ── Legacy CSV path (Knesset ≤ 24) ───────────────────────────────────────
     cache_key = cache.make_list_key("bills:list", page=page, limit=limit,
                                     search=search, status_id=status_id,
                                     knesset_num=knesset_num, date_from=date_from, date_to=date_to)
@@ -174,20 +250,28 @@ async def get_bill(bill_id: int, redis: aioredis.Redis) -> dict | None:
     cache_key = f"bills:detail:{bill_id}"
 
     async def factory() -> dict | None:
+        # Try CSV first (covers Knesset ≤ 24)
         frames = await fetch_bills_data()
         df = frames.get("kns_bill", pd.DataFrame())
-        if df.empty:
-            return None
-        rows = df[df["BillID"] == bill_id]
-        if rows.empty:
-            return None
+        if not df.empty:
+            rows = df[df["BillID"] == bill_id]
+            if not rows.empty:
+                init_df = frames.get("kns_billinitiator", pd.DataFrame())
+                bill_inits = init_df[init_df["BillID"] == bill_id] if not init_df.empty else pd.DataFrame()
+                mk_frames = await fetch_all_mk_data()
+                mk_df = mk_frames.get("mk_individual", pd.DataFrame())
+                init_map = _build_init_map(bill_inits, mk_df)
+                return _row_to_bill(rows.iloc[0], init_map.get(bill_id, []))
 
-        init_df = frames.get("kns_billinitiator", pd.DataFrame())
-        bill_inits = init_df[init_df["BillID"] == bill_id] if not init_df.empty else pd.DataFrame()
-        mk_frames = await fetch_all_mk_data()
-        mk_df = mk_frames.get("mk_individual", pd.DataFrame())
-        init_map = _build_init_map(bill_inits, mk_df)
+        # Not in CSV → try OData v4 (Knesset 25+ bill)
+        try:
+            data = await fetch_v4("KNS_Bill", params={"$filter": f"BillID eq {bill_id}"})
+            v4_rows = data.get("value", [])
+            if v4_rows:
+                return _v4_row_to_bill(v4_rows[0])
+        except Exception as exc:
+            logger.warning("get_bill: OData v4 fallback failed for bill_id=%d: %s", bill_id, exc)
 
-        return _row_to_bill(rows.iloc[0], init_map.get(bill_id, []))
+        return None
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_BILL_DETAIL, redis)

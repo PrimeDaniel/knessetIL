@@ -41,6 +41,7 @@ from app.services import cache_service as cache
 from app.services.oknesset_client import (
     V4_RESULT_CODE_MAP,
     fetch_v4,
+    fetch_v4_bill_item_ids,
     fetch_v4_mk_faction_map,
     fetch_v4_vote_results,
     fetch_v4_votes_page,
@@ -608,3 +609,78 @@ async def get_vote_detail(vote_id: int, redis: aioredis.Redis) -> dict | None:
         return base
 
     return await cache.get_or_set(cache_key, csv_factory, cache.TTL_VOTE_DETAIL, redis)
+
+
+async def get_votes_for_bill(bill_id: int, redis: aioredis.Redis) -> dict | None:
+    """
+    Find the most recent vote for a bill via the KNS_PlItem → KNS_PlenumVote chain.
+
+    Lookup strategy (each step falls through to the next on failure):
+      1. KNS_PlItem?$filter=BillID eq {bill_id}  → ItemID list
+      2. KNS_PlenumVote?$filter=ItemID eq {item_id}  → vote headers (v4)
+      3. Direct ItemID == BillID fallback (some IDs coincide by accident)
+      4. CSV: filter view_vote_rslts_hdr_approved where vote_item_id in ItemIDs (K24)
+
+    Returns a full ``VoteDetail`` dict or ``None`` if no vote is found.
+    """
+    cache_key = f"bills:votes:{bill_id}"
+
+    async def factory() -> dict | None:
+        # ── Step 1: bill → plenum item IDs ───────────────────────────────────
+        item_ids = await fetch_v4_bill_item_ids(bill_id)
+
+        # ── Step 2: plenum item IDs → vote rows (v4) ─────────────────────────
+        vote_rows: list[dict] = []
+        for item_id in item_ids:
+            try:
+                data = await fetch_v4(
+                    "KNS_PlenumVote",
+                    params={
+                        "$filter": f"ItemID eq {item_id}",
+                        "$orderby": "VoteDateTime desc",
+                        "$top": "10",
+                    },
+                )
+                vote_rows.extend(data.get("value", []))
+            except Exception as exc:
+                logger.warning(
+                    "get_votes_for_bill: votes for item_id=%d failed: %s", item_id, exc
+                )
+
+        # ── Step 3: fallback — try BillID directly as ItemID ─────────────────
+        if not vote_rows:
+            try:
+                data = await fetch_v4(
+                    "KNS_PlenumVote",
+                    params={
+                        "$filter": f"ItemID eq {bill_id}",
+                        "$orderby": "VoteDateTime desc",
+                        "$top": "5",
+                    },
+                )
+                vote_rows = data.get("value", [])
+            except Exception:
+                pass
+
+        # ── Step 4: build VoteDetail from the best v4 vote ───────────────────
+        if vote_rows:
+            vote_rows.sort(key=lambda r: r.get("VoteDateTime") or "", reverse=True)
+            vote_id = int(vote_rows[0].get("Id") or 0)
+            if vote_id:
+                return await get_vote_detail_v4(vote_id, redis)
+
+        # ── Step 5: CSV fallback for K24 bills ───────────────────────────────
+        if item_ids:
+            vote_frames = await fetch_vote_data()
+            csv_df = vote_frames.get("view_vote_rslts_hdr_approved", pd.DataFrame())
+            if not csv_df.empty and "vote_item_id" in csv_df.columns:
+                matching = csv_df[csv_df["vote_item_id"].isin(item_ids)]
+                if not matching.empty:
+                    latest = matching.sort_values("vote_date", ascending=False).iloc[0]
+                    vote_id = int(_safe(latest.get("vote_id")) or 0)
+                    if vote_id:
+                        return await get_vote_detail(vote_id, redis)
+
+        return None
+
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_DETAIL, redis)
