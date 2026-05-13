@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Request
 from app.deps import RedisDep
 from app.services import members_service
+from app.services.mk_snapshot_service import fetch_and_store, get_snapshot
 from app.services.oknesset_client import (
     V4_RESULT_CODE_MAP,
     fetch_v4,
@@ -24,7 +25,7 @@ async def get_members(
     request: Request,
     redis: RedisDep,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     search: str | None = Query(None, description="Hebrew or English name search"),
     faction_id: int | None = None,
     knesset_num: int | None = None,
@@ -34,6 +35,20 @@ async def get_members(
         redis, page=page, limit=limit, search=search,
         faction_id=faction_id, is_current=is_current,
     )
+
+
+@router.get("/refresh")
+async def refresh_mk_snapshot(redis: RedisDep):
+    """
+    Re-fetch all current MK data from the Knesset website and persist to file + Redis.
+    Call this when the Knesset's published member list changes (faction switches, new MKs, etc.).
+    """
+    try:
+        mks = await fetch_and_store(redis)
+        return {"status": "ok", "count": len(mks)}
+    except Exception as exc:
+        logger.error("refresh_mk_snapshot failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Failed to refresh MK snapshot: {exc}")
 
 
 @router.get("/{mk_id}")

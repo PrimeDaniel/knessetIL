@@ -23,6 +23,8 @@ from app.config import get_settings
 from app.routers import bills, members, parties, stats, votes
 from app.tasks.sync import run_sync
 from app.services.oknesset_client import shutdown_http_client
+from app.services.mk_snapshot_service import get_snapshot
+from app.deps import get_redis_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,6 +42,15 @@ scheduler = AsyncIOScheduler()
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting KnessetIL API (env=%s)", settings.app_env)
+
+    # Warm the MK snapshot (Redis → file → fresh fetch)
+    redis = get_redis_client()
+    try:
+        mks = await get_snapshot(redis)
+        logger.info("MK snapshot ready: %d members", len(mks))
+    except Exception as exc:
+        logger.warning("MK snapshot warm-up failed (will retry on first request): %s", exc)
+
     scheduler.add_job(
         run_sync,
         "interval",
