@@ -18,7 +18,31 @@
       "Bash(python -m json.tool)",
       "Bash(python *)",
       "WebFetch(domain:oknesset.org)",
-      "Bash(venv/Scripts/python -c ' *)"
-    ]
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(npx playwright *)",
+      "Bash(redis-cli FLUSHDB)",
+      "PowerShell(Get-Command redis-cli -ErrorAction SilentlyContinue)",
+      "PowerShell(wsl --list --verbose 2>&1)",
+      "Bash(claude mcp *)",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages",
+      "WebFetch(domain:api.anthropic.com)",
+      "mcp__playwright__browser_close",
+      "PowerShell(Get-ChildItem \"$env:TEMP\\\\knesset_design\" -Recurse | Select-Object FullName, Length)",
+      "PowerShell(ls \"$env:TEMP\\\\knesset_design\" -Recurse 2>&1)",
+      "Skill(update-config)",
+      "Bash(Find-Content -Path \"D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api\\\\app\" -Include \"*.py\" -Pattern \"recent_bills|recent_votes|dashboard\")",
+      "Bash(Select-Object -First 20)",
+      "mcp__playwright__browser_press_key",
+      "WebFetch(domain:m.knesset.gov.il)",
+      "mcp__playwright__browser_network_requests",
+      "Bash(.\\\\venv\\\\Scripts\\\\python.exe *)",
+      "mcp__playwright__browser_evaluate"
+    ],
+    "defaultMode": "auto"
   }
 }
