@@ -239,11 +239,15 @@ async def list_bills_v4(
     )
 
     async def factory() -> dict:
+        # Translate canonical status_id (1-13) to OData v4 StatusID values (100-180)
+        v4_status_ids: list[int] | None = None
+        if status_id is not None:
+            v4_status_ids = CANONICAL_TO_V4_STATUS.get(status_id, [status_id])
         envelope = await fetch_v4_bills_page(
             page=page,
             limit=limit,
             knesset_num=knesset_num if knesset_num is not None else 25,
-            status_id=status_id,
+            status_ids=v4_status_ids,
             search=search,
             date_from=date_from,
             date_to=date_to,

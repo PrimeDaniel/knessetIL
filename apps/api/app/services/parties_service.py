@@ -70,6 +70,7 @@ def _row_to_faction(row: pd.Series, factions_df: pd.DataFrame, knesset_num: int 
         "knessets":     knessets,
         "member_count": member_count,
         "cohesion_score": None,
+        "members":      [],
     }
 
 
@@ -102,6 +103,47 @@ async def list_parties(redis: aioredis.Redis, knesset_num: int | None = None,
             "pagination": {"page": 1, "limit": total, "total": total, "total_pages": 1},
             "cached_at": _now_iso(),
         }
+
+    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
+
+
+async def get_party_detail(faction_id: int, redis: aioredis.Redis) -> dict | None:
+    """Return faction detail with members list populated from CSV join."""
+    cache_key = f"parties:detail:{faction_id}"
+
+    async def factory() -> dict | None:
+        fac_df = await fetch_csv("factions")
+        if fac_df.empty:
+            return None
+        rows = fac_df[fac_df["id"] == faction_id]
+        if rows.empty:
+            return None
+
+        mk_frames = await fetch_all_mk_data()
+        mk_factions_df = mk_frames.get("mk_individual_factions", pd.DataFrame())
+        mk_df = mk_frames.get("mk_individual", pd.DataFrame())
+
+        faction = _row_to_faction(rows.iloc[0], mk_factions_df, None)
+
+        # Populate members: join mk_individual_factions + mk_individual
+        members: list[dict] = []
+        if not mk_factions_df.empty and "faction_id" in mk_factions_df.columns:
+            faction_mks = mk_factions_df[
+                (mk_factions_df["faction_id"] == faction_id) &
+                (mk_factions_df["finish_date"].isna())
+            ]
+            if not mk_df.empty and not faction_mks.empty:
+                mk_id_set = set(faction_mks["mk_individual_id"].dropna().astype(int).tolist())
+                for _, mr in mk_df[mk_df["mk_individual_id"].isin(mk_id_set)].iterrows():
+                    members.append({
+                        "mk_individual_id":   int(mr["mk_individual_id"]),
+                        "mk_individual_name": _safe(mr.get("mk_individual_name", "")),
+                        "is_current":         bool(_safe(mr.get("IsCurrent", False))),
+                    })
+
+        faction["members"] = sorted(members, key=lambda m: m["mk_individual_name"] or "")
+        faction["member_count"] = len(members)
+        return faction
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
 

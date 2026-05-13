@@ -410,7 +410,7 @@ async def fetch_v4_bills_page(
     page: int = 1,
     limit: int = 20,
     knesset_num: int | None = None,
-    status_id: int | None = None,
+    status_ids: list[int] | None = None,
     search: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -420,6 +420,9 @@ async def fetch_v4_bills_page(
 
     Uses ``$expand=KNS_BillInitiator($expand=KNS_Person)`` to fetch initiator
     names inline — eliminates the empty ``initiators: []`` for v4 bills.
+
+    ``status_ids`` must already be translated to OData v4 StatusID values
+    (100-180 range); callers are responsible for the canonical→v4 mapping.
 
     Returns the raw OData envelope::
 
@@ -440,8 +443,12 @@ async def fetch_v4_bills_page(
     filters: list[str] = []
     if knesset_num is not None:
         filters.append(f"KnessetNum eq {knesset_num}")
-    if status_id is not None:
-        filters.append(f"StatusID eq {status_id}")
+    if status_ids:
+        if len(status_ids) == 1:
+            filters.append(f"StatusID eq {status_ids[0]}")
+        else:
+            or_parts = " or ".join(f"StatusID eq {sid}" for sid in status_ids)
+            filters.append(f"({or_parts})")
     if search:
         escaped = search.replace("'", "''")
         filters.append(f"contains(Name, '{escaped}')")
@@ -573,3 +580,77 @@ async def fetch_v4_mk_faction_map() -> dict[str, dict]:
         "fetch_v4_mk_faction_map: built %d name→faction entries", len(name_key_to_faction)
     )
     return name_key_to_faction
+
+
+async def fetch_v4_current_knesset_members() -> list[dict]:
+    """
+    Fetch all current Knesset 25 members from OData v4.
+
+    Joins:
+    - KNS_PersonToPosition (KnessetNum=25, IsCurrent=true) → PersonID + faction
+    - KNS_Person (IsCurrent=true) → FirstName + LastName
+
+    Deduplicates by PersonID (one row per MK even if they hold multiple positions).
+    Returns a list of dicts with keys:
+        person_id, first_name, last_name, full_name, faction_id, faction_name,
+        gender_desc, email
+    """
+    import asyncio
+
+    try:
+        positions_rows, persons_rows = await asyncio.gather(
+            fetch_v4_all(
+                "KNS_PersonToPosition",
+                params={"$filter": "KnessetNum eq 25 and IsCurrent eq true"},
+            ),
+            fetch_v4_all(
+                "KNS_Person",
+                params={"$filter": "IsCurrent eq true"},
+            ),
+        )
+    except Exception as exc:
+        logger.error("fetch_v4_current_knesset_members: failed: %s", exc)
+        return []
+
+    # person_id -> name/gender/email info
+    person_map: dict[int, dict] = {}
+    for p in persons_rows:
+        pid = p.get("Id")
+        if pid is not None:
+            person_map[int(pid)] = {
+                "first_name": (p.get("FirstName") or "").strip(),
+                "last_name":  (p.get("LastName")  or "").strip(),
+                "gender_desc": (p.get("GenderDesc") or "").strip(),
+                "email": p.get("Email"),
+            }
+
+    # Deduplicate: one entry per person (first faction seen wins)
+    seen: set[int] = set()
+    result: list[dict] = []
+    for pos in positions_rows:
+        pid = pos.get("PersonID")
+        if pid is None:
+            continue
+        pid_int = int(pid)
+        if pid_int in seen:
+            continue
+        seen.add(pid_int)
+
+        person = person_map.get(pid_int, {})
+        first = person.get("first_name", "")
+        last  = person.get("last_name",  "")
+        full_name = f"{first} {last}".strip() if first and last else first or last
+
+        result.append({
+            "person_id":   pid_int,
+            "first_name":  first,
+            "last_name":   last,
+            "full_name":   full_name,
+            "faction_id":  int(pos["FactionID"]) if pos.get("FactionID") else None,
+            "faction_name": (pos.get("FactionName") or "").strip(),
+            "gender_desc": person.get("gender_desc", ""),
+            "email":       person.get("email"),
+        })
+
+    logger.info("fetch_v4_current_knesset_members: %d current K25 members", len(result))
+    return result

@@ -17,11 +17,10 @@ async def get_parties(
 
 @router.get("/{faction_id}")
 async def get_party(faction_id: int, redis: RedisDep):
-    result = await parties_service.list_parties(redis)
-    for faction in result.get("data", []):
-        if faction["id"] == faction_id:
-            return faction
-    raise HTTPException(status_code=404, detail=f"Faction {faction_id} not found")
+    faction = await parties_service.get_party_detail(faction_id, redis)
+    if faction is None:
+        raise HTTPException(status_code=404, detail=f"Faction {faction_id} not found")
+    return faction
 
 
 @router.get("/{faction_id}/cohesion")
