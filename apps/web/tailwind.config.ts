@@ -11,10 +11,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      // Hebrew-first font stack
       fontFamily: {
-        sans: ["var(--font-heebo)", "Heebo", "Assistant", "system-ui", "sans-serif"],
-        hebrew: ["var(--font-heebo)", "Heebo", "Assistant", "sans-serif"],
+        sans:   ["var(--font-heebo)", "Heebo",            "Assistant",      "system-ui", "sans-serif"],
+        serif:  ["var(--font-serif)", "Noto Serif Hebrew", "Georgia",        "serif"],
+        mono:   ["var(--font-mono)",  "IBM Plex Mono",    "JetBrains Mono", "Menlo",     "monospace"],
+        hebrew: ["var(--font-heebo)", "Heebo",            "Assistant",      "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -77,12 +78,25 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       animation: {
-        "fade-in":  "fadeIn 0.3s ease-in-out",
-        "slide-up": "slideUp 0.3s ease-out",
-        shimmer:    "shimmer 1.8s ease-in-out infinite",
+        "fade-in":    "fadeIn 0.3s ease-in-out",
+        "slide-up":   "slideUp 0.3s ease-out",
+        "fade-up":    "fadeUp 600ms cubic-bezier(.2,.7,.2,1) both",
+        "seat-pop":   "seatPop 600ms cubic-bezier(.2,1.4,.4,1) both",
+        "bar-grow":   "barGrow 700ms cubic-bezier(.2,.7,.2,1) 250ms both",
+        shimmer:      "shimmer 1.8s ease-in-out infinite",
+        "modal-in":   "modalIn 0.35s cubic-bezier(0.2,0.8,0.2,1) both",
+        "backdrop-in":"backdropIn 0.25s ease-out both",
       },
       keyframes: {
         fadeIn: {
+          "0%":   { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        modalIn: {
+          "0%":   { opacity: "0", transform: "translateY(24px) scale(0.96)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        backdropIn: {
           "0%":   { opacity: "0" },
           "100%": { opacity: "1" },
         },
@@ -90,9 +104,22 @@ const config: Config = {
           "0%":   { transform: "translateY(8px)", opacity: "0" },
           "100%": { transform: "translateY(0)",   opacity: "1" },
         },
+        fadeUp: {
+          "0%":   { opacity: "0", transform: "translateY(14px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        seatPop: {
+          "0%":   { opacity: "0", transform: "scale(0)" },
+          "60%":  { opacity: "1", transform: "scale(1.18)" },
+          "100%": { transform: "scale(1)" },
+        },
+        barGrow: {
+          "0%":   { transform: "scaleX(0)" },
+          "100%": { transform: "scaleX(1)" },
+        },
         shimmer: {
-          "0%":   { transform: "translateX(-100%)" },
-          "100%": { transform: "translateX(100%)" },
+          "0%":   { transform: "translateX(100%)" },
+          "100%": { transform: "translateX(-100%)" },
         },
       },
     },

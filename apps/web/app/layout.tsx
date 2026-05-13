@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Heebo } from "next/font/google";
+import { Heebo, Noto_Serif_Hebrew, IBM_Plex_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { ReactQueryProvider } from "@/components/shared/ReactQueryProvider";
@@ -11,6 +11,22 @@ const heebo = Heebo({
   variable: "--font-heebo",
   display: "swap",
   weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+// ── Serif font for editorial headings ─────────────────────────────────────────
+const notoSerifHebrew = Noto_Serif_Hebrew({
+  subsets: ["hebrew"],
+  variable: "--font-serif",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+// ── Mono font for data labels and numbers ─────────────────────────────────────
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -37,7 +53,7 @@ export default async function RootLayout({
 
   return (
     // RTL is set at the HTML root — all Tailwind logical properties flow from here
-    <html lang="he" dir="rtl" className={heebo.variable}>
+    <html lang="he" dir="rtl" className={`dark ${heebo.variable} ${notoSerifHebrew.variable} ${ibmPlexMono.variable}`}>
       <body className="font-sans min-h-screen bg-background antialiased">
         <NextIntlClientProvider messages={messages}>
           <ReactQueryProvider>
