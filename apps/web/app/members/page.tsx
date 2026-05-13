@@ -1,142 +1,138 @@
 "use client";
 
-import { useQueryState } from "nuqs";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { MKCard } from "@/components/members/MKCard";
 import { SearchInput } from "@/components/shared/SearchInput";
-import { Pagination } from "@/components/shared/Pagination";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
-import { useDebounce } from "@/hooks/useDebounce";
 import { useMembers } from "@/hooks/useMembers";
-import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
+import { Users, ChevronLeft } from "lucide-react";
+import type { MKProfile } from "@knesset/types";
 
-const IS_CURRENT_OPTIONS = [
-  { value: "", label: "כל חברי הכנסת" },
-  { value: "true", label: "כנסת נוכחית" },
-  { value: "false", label: "לשעבר" },
-];
+function groupByFaction(members: MKProfile[]): [string, MKProfile[]][] {
+  const map = new Map<string, MKProfile[]>();
+  for (const mk of members) {
+    const key = mk.current_faction?.name ?? "ללא סיעה";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(mk);
+  }
+  return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+}
 
 export default function MembersPage() {
-  const [search, setSearch] = useQueryState("search", { defaultValue: "", shallow: false });
-  const [isCurrent, setIsCurrent] = useQueryState("is_current", { defaultValue: "", shallow: false });
-  const [page, setPage] = useQueryState("page", { defaultValue: "1", shallow: false });
+  const [localSearch, setLocalSearch] = useState("");
+  const debouncedSearch = useDebounce(localSearch, 200);
 
-  const [localSearch, setLocalSearch] = useState(search ?? "");
-  const debouncedSearch = useDebounce(localSearch, 350);
-
-  useEffect(() => {
-    setSearch(debouncedSearch || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
-
-  const currentPage = parseInt(page ?? "1", 10);
-
+  // Fetch all current K25 members in one shot — 120-130 total, no pagination needed
   const { data, isLoading, isError } = useMembers({
-    page: currentPage,
-    limit: 30,
-    search: debouncedSearch || undefined,
-    is_current:
-      isCurrent === "true" ? true : isCurrent === "false" ? false : undefined,
+    limit: 200,
+    is_current: true,
   });
 
-  const hasFilters = !!localSearch || !!isCurrent;
+  const allMembers = data?.data ?? [];
 
-  const handlePageChange = (p: number) => {
-    setPage(String(p));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const filtered = useMemo(() => {
+    if (!debouncedSearch.trim()) return allMembers;
+    const s = debouncedSearch.trim().toLowerCase();
+    return allMembers.filter((mk) =>
+      mk.mk_individual_name.toLowerCase().includes(s) ||
+      mk.mk_individual_first_name?.toLowerCase().includes(s)
+    );
+  }, [allMembers, debouncedSearch]);
+
+  const groups = useMemo(() => groupByFaction(filtered), [filtered]);
 
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1">חברי כנסת</h1>
-          {data && (
-            <p className="text-sm text-muted-foreground">
-              {data.pagination.total.toLocaleString("he-IL")} חברי כנסת
-            </p>
-          )}
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
+
+        {/* Page header */}
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="h-5 w-5 text-primary" />
+              <h1 className="text-2xl font-bold">חברי כנסת 25</h1>
+            </div>
+            {data && (
+              <p className="text-sm text-muted-foreground">
+                {allMembers.length} חברי כנסת נוכחיים ·{" "}
+                {groups.length} סיעות
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Filter bar */}
-        <div className={cn("flex flex-wrap gap-3 items-end mb-6")}>
-          <div className="flex-1 min-w-[200px]">
-            <SearchInput
-              value={localSearch}
-              onChange={setLocalSearch}
-              placeholder="חפש חבר/ת כנסת..."
-            />
-          </div>
-
-          <select
-            value={isCurrent ?? ""}
-            onChange={(e) => {
-              setIsCurrent(e.target.value || null);
-              setPage("1");
-            }}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="סנן לפי מצב"
-          >
-            {IS_CURRENT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-
-          {hasFilters && (
-            <button
-              onClick={() => {
-                setLocalSearch("");
-                setSearch(null);
-                setIsCurrent(null);
-                setPage("1");
-              }}
-              className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
-            >
-              נקה סינון
-            </button>
-          )}
+        {/* Search */}
+        <div className="mb-8 max-w-sm">
+          <SearchInput
+            value={localSearch}
+            onChange={setLocalSearch}
+            placeholder="חפש חבר/ת כנסת..."
+          />
         </div>
 
         {isError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive mb-6">
             שגיאה בטעינת נתונים. אנא נסה שוב.
           </div>
         )}
 
+        {/* Loading skeleton */}
         {isLoading && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 15 }).map((_, i) => (
-              <SkeletonCard key={i} className="h-[72px]" />
+          <div className="space-y-8">
+            {[1, 2, 3].map((g) => (
+              <div key={g}>
+                <div className="h-5 w-32 bg-muted rounded animate-pulse mb-3" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: g === 1 ? 6 : g === 2 ? 4 : 3 }).map((_, i) => (
+                    <SkeletonCard key={i} className="h-[72px]" />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
 
-        {data && !isLoading && (
+        {/* Results grouped by faction */}
+        {!isLoading && (
           <>
-            {data.data.length === 0 ? (
+            {filtered.length === 0 && (
               <div className="py-16 text-center text-muted-foreground">
                 לא נמצאו חברי כנסת התואמים את החיפוש.
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {data.data.map((mk) => (
-                  <MKCard key={mk.mk_individual_id} mk={mk} />
-                ))}
-              </div>
             )}
 
-            <div className="mt-8">
-              <Pagination
-                page={currentPage}
-                totalPages={data.pagination.total_pages}
-                total={data.pagination.total}
-                onPageChange={handlePageChange}
-              />
+            <div className="space-y-10">
+              {groups.map(([factionName, members]) => (
+                <section key={factionName}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="text-base font-bold text-foreground">
+                      {factionName}
+                    </h2>
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-medium">
+                      {members.length}
+                    </span>
+                    {members[0]?.current_faction?.id && (
+                      <Link
+                        href={`/parties/${members[0].current_faction.id}`}
+                        className="ms-auto text-xs text-primary hover:underline flex items-center gap-0.5"
+                      >
+                        דף הסיעה
+                        <ChevronLeft className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {members.map((mk) => (
+                      <MKCard key={mk.mk_individual_id} mk={mk} />
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           </>
         )}

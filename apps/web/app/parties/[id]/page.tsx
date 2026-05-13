@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Users } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -11,9 +12,16 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
   const factionId = parseInt(params.id, 10);
   const { data: faction, isLoading, isError } = useParty(factionId);
 
+  useEffect(() => {
+    if (faction?.name) {
+      document.title = `${faction.name} | שקיפות הכנסת`;
+    }
+    return () => { document.title = "שקיפות הכנסת"; };
+  }, [faction?.name]);
+
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
           <div className="space-y-4">
@@ -29,7 +37,7 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
 
   if (isError || !faction) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive">
@@ -46,7 +54,7 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
     faction.knessets.length > 0 ? Math.max(...faction.knessets) : null;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         {/* Breadcrumb */}

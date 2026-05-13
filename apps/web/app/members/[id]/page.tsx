@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Mail, Phone, ExternalLink } from "lucide-react";
@@ -28,9 +29,16 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
   const { data: mk, isLoading, isError } = useMember(mkId);
   const { data: stats } = useMemberStats(mkId);
 
+  useEffect(() => {
+    if (mk?.mk_individual_name) {
+      document.title = `${mk.mk_individual_name} | שקיפות הכנסת`;
+    }
+    return () => { document.title = "שקיפות הכנסת"; };
+  }, [mk?.mk_individual_name]);
+
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
           <div className="space-y-4">
@@ -46,7 +54,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
   if (isError || !mk) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive">
@@ -59,7 +67,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         {/* Breadcrumb */}
@@ -80,6 +88,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
                 src={mk.mk_individual_photo}
                 alt={mk.mk_individual_name}
                 fill
+                unoptimized
                 className="object-cover"
                 sizes="80px"
               />

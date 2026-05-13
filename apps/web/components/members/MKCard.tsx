@@ -26,6 +26,7 @@ export function MKCard({ mk, className }: MKCardProps) {
             src={mk.mk_individual_photo}
             alt={mk.mk_individual_name}
             fill
+            unoptimized
             className="object-cover"
             sizes="48px"
           />
