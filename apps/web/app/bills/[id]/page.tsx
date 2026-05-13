@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -33,6 +34,13 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
 
   const { data: bill, isLoading, isError } = useBill(billId);
   const { data: voteDetail, isLoading: voteLoading } = useBillVotes(billId);
+
+  useEffect(() => {
+    if (bill?.name) {
+      document.title = `${bill.name} | שקיפות הכנסת`;
+    }
+    return () => { document.title = "שקיפות הכנסת"; };
+  }, [bill?.name]);
 
   if (isError) {
     return (
@@ -111,7 +119,7 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Initiators */}
-            {bill.initiators.length > 0 && (
+            {(bill.initiators?.length ?? 0) > 0 && (
               <section className="rounded-xl border border-border bg-card shadow-card p-5">
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">יוזמים</h2>
                 <div className="flex flex-wrap gap-2">

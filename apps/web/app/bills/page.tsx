@@ -1,16 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useQueryState } from "nuqs";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { BillFilterBar } from "@/components/bills/BillFilterBar";
 import { BillCard } from "@/components/bills/BillCard";
+import { BillModal } from "@/components/bills/BillModal";
 import { Pagination } from "@/components/shared/Pagination";
 import { SkeletonList } from "@/components/shared/SkeletonCard";
 import { useBills } from "@/hooks/useBills";
 import { FileText, AlertCircle } from "lucide-react";
 
 export default function BillsPage() {
+  const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
   const [search] = useQueryState("search", { defaultValue: "" });
   const [statusId] = useQueryState("status_id", { defaultValue: "" });
   const [knessetNum] = useQueryState("knesset_num", { defaultValue: "" });
@@ -78,7 +81,7 @@ export default function BillsPage() {
             ) : (
               <div className="flex flex-col gap-2">
                 {data.data.map((bill) => (
-                  <BillCard key={bill.bill_id} bill={bill} />
+                  <BillCard key={bill.bill_id} bill={bill} onSelect={setSelectedBillId} />
                 ))}
               </div>
             )}
@@ -95,6 +98,9 @@ export default function BillsPage() {
         )}
       </main>
       <Footer />
+      {selectedBillId && (
+        <BillModal billId={selectedBillId} onClose={() => setSelectedBillId(null)} />
+      )}
     </div>
   );
 }

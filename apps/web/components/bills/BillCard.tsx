@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { cn, formatDateHe } from "@/lib/utils";
-import { User2, Calendar, ChevronLeft } from "lucide-react";
+import { User2, Calendar } from "lucide-react";
 import type { Bill } from "@knesset/types";
 
 interface BillCardProps {
   bill: Bill;
+  onSelect: (id: number) => void;
   className?: string;
 }
 
@@ -27,28 +27,27 @@ function statusPill(statusId: number, desc: string) {
   return <span className={cn(base, "bg-muted text-muted-foreground")}>{desc}</span>;
 }
 
-export function BillCard({ bill, className }: BillCardProps) {
-  const primaryInitiator = bill.initiators[0];
-  const extraCount = bill.initiators.length - 1;
+export function BillCard({ bill, onSelect, className }: BillCardProps) {
+  const primaryInitiator = bill.initiators?.[0];
+  const extraCount = (bill.initiators?.length ?? 0) - 1;
 
   return (
-    <Link
-      href={`/bills/${bill.bill_id}`}
+    <button
+      type="button"
+      onClick={() => onSelect(bill.bill_id)}
       className={cn(
-        "group flex items-stretch rounded-xl border border-border border-s-4 bg-card shadow-card",
+        "group w-full text-start flex items-stretch rounded-xl border border-border border-s-4 bg-card shadow-card",
         "hover:shadow-card-md hover:border-primary/20 transition-all duration-150",
-        "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         statusAccent(bill.status_id),
         className
       )}
     >
       <div className="flex-1 min-w-0 p-4">
-        {/* Bill name */}
         <h3 className="text-sm font-semibold leading-snug line-clamp-2 text-foreground group-hover:text-primary transition-colors">
           {bill.name || "ללא שם"}
         </h3>
 
-        {/* Metadata row */}
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {statusPill(bill.status_id, bill.status_desc)}
           <span className="text-[11px] text-muted-foreground">כנסת {bill.knesset_num}</span>
@@ -60,7 +59,6 @@ export function BillCard({ bill, className }: BillCardProps) {
           )}
         </div>
 
-        {/* Initiator */}
         {primaryInitiator && (
           <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
             <User2 className="h-3 w-3 shrink-0" />
@@ -69,11 +67,6 @@ export function BillCard({ bill, className }: BillCardProps) {
           </p>
         )}
       </div>
-
-      {/* Arrow chevron */}
-      <div className="flex items-center pe-3 text-muted-foreground/30 group-hover:text-primary/40 transition-colors">
-        <ChevronLeft className="h-4 w-4" />
-      </div>
-    </Link>
+    </button>
   );
 }
