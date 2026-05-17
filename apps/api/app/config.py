@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     rate_limit_default: str = "100/minute"
     rate_limit_search: str = "30/minute"
 
+    # Current Knesset number — used for default filters and OData v4 routing
+    current_knesset: int = 25
+
     # Logging
     log_level: str = "INFO"
 
