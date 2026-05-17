@@ -16,7 +16,7 @@ class FactionMemberSummary(BaseModel):
     mk_individual_id: int
     mk_individual_name: str
     is_current: bool
-    rebellion_rate: float
+    rebellion_rate: float | None = None
 
 
 class FactionDetail(Faction):
@@ -32,7 +32,7 @@ class RecentCohesionPoint(BaseModel):
 class FactionCohesionData(BaseModel):
     faction_id: int
     faction_name: str
-    cohesion_score: float
+    cohesion_score: float | None = None
     total_votes_analyzed: int
     recent_cohesion: list[RecentCohesionPoint] = Field(default_factory=list)
 

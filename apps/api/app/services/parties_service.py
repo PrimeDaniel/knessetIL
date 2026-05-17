@@ -1,25 +1,24 @@
 """
-Parties (Factions) service -- corrected for real factions.csv schema.
+Parties (Factions) service — SQLAlchemy-backed.
 
-Real factions.csv columns:
-  id, name, start_date, finish_date, knessets (array like [25])
-
-Real mk_individual_factions.csv columns:
-  mk_individual_id, faction_id, faction_name, start_date, finish_date, knesset (int)
+Cohesion score is computed from vote_decisions: for each vote a faction
+participated in, a vote is "cohesive" when all members voted the same way.
+Score = cohesive_votes / total_votes_with_participation.
 """
+
 from __future__ import annotations
 
-import json
 import logging
-import math
 from datetime import datetime, timezone
-from typing import Any
 
-import pandas as pd
 import redis.asyncio as aioredis
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db_models.faction import Faction
+from app.db_models.member import Member, MemberFaction
+from app.db_models.vote import VoteDecision
 from app.services import cache_service as cache
-from app.services.oknesset_client import fetch_csv, fetch_all_mk_data
 
 logger = logging.getLogger(__name__)
 
@@ -28,78 +27,58 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _safe(val: Any) -> Any:
-    try:
-        if pd.isna(val):
-            return None
-    except (TypeError, ValueError):
-        pass
-    return val
-
-
-def _parse_knessets(raw: Any) -> list[int]:
-    """Parse the 'knessets' column which comes as a JSON array string like '[25]'."""
-    if raw is None:
-        return []
-    try:
-        parsed = json.loads(str(raw))
-        return [int(k) for k in parsed] if isinstance(parsed, list) else []
-    except (json.JSONDecodeError, ValueError):
-        return []
-
-
-def _row_to_faction(row: pd.Series, factions_df: pd.DataFrame, knesset_num: int | None) -> dict:
-    faction_id = int(_safe(row.get("id")) or 0)
-
-    # Count current members from factions join table
-    member_count = 0
-    if not factions_df.empty and "faction_id" in factions_df.columns:
-        active = factions_df[
-            (factions_df["faction_id"] == faction_id) &
-            (factions_df["finish_date"].isna())
-        ]
-        member_count = len(active)
-
-    knessets = _parse_knessets(row.get("knessets"))
-
+def _faction_to_dict(faction: Faction, member_count: int) -> dict:
     return {
-        "id":           faction_id,
-        "name":         _safe(row.get("name", "")),
-        "start_date":   str(_safe(row.get("start_date", ""))),
-        "finish_date":  str(_safe(row["finish_date"])) if _safe(row.get("finish_date")) else None,
-        "knessets":     knessets,
+        "id": faction.id,
+        "name": faction.name,
+        "start_date": faction.start_date.isoformat() if faction.start_date else "",
+        "finish_date": faction.finish_date.isoformat() if faction.finish_date else None,
+        "knessets": faction.knessets or [],
         "member_count": member_count,
         "cohesion_score": None,
-        "members":      [],
     }
 
 
-async def list_parties(redis: aioredis.Redis, knesset_num: int | None = None,
-                       is_active: bool | None = None) -> dict:
+async def list_parties(
+    db: AsyncSession,
+    redis: aioredis.Redis,
+    knesset_num: int | None = None,
+    is_active: bool | None = None,
+) -> dict:
     cache_key = cache.make_list_key("parties:list", knesset_num=knesset_num, is_active=is_active)
 
     async def factory() -> dict:
-        fac_df = await fetch_csv("factions")
-        mk_fac_frames = await fetch_all_mk_data()
-        mk_factions_df = mk_fac_frames.get("mk_individual_factions", pd.DataFrame())
+        stmt = select(Faction)
 
-        if fac_df.empty:
-            return {"data": [], "pagination": {"page": 1, "limit": 500, "total": 0, "total_pages": 0}, "cached_at": _now_iso()}
+        if is_active is True:
+            stmt = stmt.where(Faction.finish_date.is_(None))
+        elif is_active is False:
+            stmt = stmt.where(Faction.finish_date.is_not(None))
 
-        if is_active is True and "finish_date" in fac_df.columns:
-            fac_df = fac_df[fac_df["finish_date"].isna()]
+        if knesset_num is not None:
+            # Filter factions that served in this knesset (PostgreSQL array contains)
+            stmt = stmt.where(Faction.knessets.contains([knesset_num]))
 
-        if knesset_num is not None and "knessets" in fac_df.columns:
-            # Filter factions that include this knesset in their knessets array
-            fac_df = fac_df[fac_df["knessets"].apply(
-                lambda v: knesset_num in _parse_knessets(v)
-            )]
+        stmt = stmt.order_by(Faction.name)
+        result = await db.execute(stmt)
+        factions = result.scalars().all()
 
-        total = len(fac_df)
-        factions = [_row_to_faction(row, mk_factions_df, knesset_num) for _, row in fac_df.iterrows()]
+        # Count current members per faction (finish_date IS NULL in member_factions)
+        faction_ids = [f.id for f in factions]
+        counts_result = await db.execute(
+            select(MemberFaction.faction_id, func.count().label("cnt"))
+            .where(
+                MemberFaction.faction_id.in_(faction_ids),
+                MemberFaction.finish_date.is_(None),
+            )
+            .group_by(MemberFaction.faction_id)
+        )
+        member_counts: dict[int, int] = {row.faction_id: row.cnt for row in counts_result}
 
+        data = [_faction_to_dict(f, member_counts.get(f.id, 0)) for f in factions]
+        total = len(data)
         return {
-            "data": factions,
+            "data": data,
             "pagination": {"page": 1, "limit": total, "total": total, "total_pages": 1},
             "cached_at": _now_iso(),
         }
@@ -107,69 +86,98 @@ async def list_parties(redis: aioredis.Redis, knesset_num: int | None = None,
     return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
 
 
-async def get_party_detail(faction_id: int, redis: aioredis.Redis) -> dict | None:
-    """Return faction detail with members list populated from CSV join."""
+async def get_party_detail(faction_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
     cache_key = f"parties:detail:{faction_id}"
 
     async def factory() -> dict | None:
-        fac_df = await fetch_csv("factions")
-        if fac_df.empty:
-            return None
-        rows = fac_df[fac_df["id"] == faction_id]
-        if rows.empty:
+        result = await db.execute(select(Faction).where(Faction.id == faction_id))
+        faction = result.scalar_one_or_none()
+        if faction is None:
             return None
 
-        mk_frames = await fetch_all_mk_data()
-        mk_factions_df = mk_frames.get("mk_individual_factions", pd.DataFrame())
-        mk_df = mk_frames.get("mk_individual", pd.DataFrame())
+        # Current members: join member_factions → members where finish_date IS NULL
+        members_result = await db.execute(
+            select(Member, MemberFaction)
+            .join(MemberFaction, Member.mk_individual_id == MemberFaction.mk_individual_id)
+            .where(
+                MemberFaction.faction_id == faction_id,
+                MemberFaction.finish_date.is_(None),
+            )
+            .order_by(Member.last_name, Member.first_name)
+        )
+        rows = members_result.all()
 
-        faction = _row_to_faction(rows.iloc[0], mk_factions_df, None)
+        members = [
+            {
+                "mk_individual_id": m.mk_individual_id,
+                "mk_individual_name": m.full_name,
+                "is_current": m.is_current,
+                "rebellion_rate": None,
+            }
+            for m, _ in rows
+        ]
 
-        # Populate members: join mk_individual_factions + mk_individual
-        members: list[dict] = []
-        if not mk_factions_df.empty and "faction_id" in mk_factions_df.columns:
-            faction_mks = mk_factions_df[
-                (mk_factions_df["faction_id"] == faction_id) &
-                (mk_factions_df["finish_date"].isna())
-            ]
-            if not mk_df.empty and not faction_mks.empty:
-                mk_id_set = set(faction_mks["mk_individual_id"].dropna().astype(int).tolist())
-                for _, mr in mk_df[mk_df["mk_individual_id"].isin(mk_id_set)].iterrows():
-                    members.append({
-                        "mk_individual_id":   int(mr["mk_individual_id"]),
-                        "mk_individual_name": _safe(mr.get("mk_individual_name", "")),
-                        "is_current":         bool(_safe(mr.get("IsCurrent", False))),
-                    })
-
-        faction["members"] = sorted(members, key=lambda m: m["mk_individual_name"] or "")
-        faction["member_count"] = len(members)
-        return faction
+        out = _faction_to_dict(faction, len(members))
+        out["members"] = members
+        return out
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
 
 
-async def get_party_cohesion(faction_id: int, redis: aioredis.Redis) -> dict | None:
-    """
-    Cohesion cannot be computed from public CSV data (no per-MK vote decisions).
-    Returns faction info with null cohesion_score and explanation.
-    """
+async def get_party_cohesion(
+    faction_id: int, db: AsyncSession, redis: aioredis.Redis
+) -> dict | None:
     cache_key = f"parties:cohesion:{faction_id}"
 
     async def factory() -> dict | None:
-        fac_df = await fetch_csv("factions")
-        if fac_df.empty:
+        result = await db.execute(select(Faction).where(Faction.id == faction_id))
+        faction = result.scalar_one_or_none()
+        if faction is None:
             return None
-        rows = fac_df[fac_df["id"] == faction_id]
-        if rows.empty:
-            return None
-        row = rows.iloc[0]
+
+        # For each vote where this faction participated, check whether all members
+        # voted the same way (ignoring absent/abstain for cohesion definition).
+        # cohesion = votes where all participating members voted identically / total votes
+        #
+        # Step 1: get all (vote_id, result) pairs for this faction from vote_decisions
+        decisions_result = await db.execute(
+            select(VoteDecision.vote_id, VoteDecision.result).where(
+                VoteDecision.faction_id == faction_id
+            )
+        )
+        decisions = decisions_result.all()
+
+        if not decisions:
+            return {
+                "faction_id": faction_id,
+                "faction_name": faction.name,
+                "cohesion_score": None,
+                "total_votes_analyzed": 0,
+                "recent_cohesion": [],
+            }
+
+        # Step 2: group by vote_id, collect unique results (excluding absent)
+        from collections import defaultdict
+
+        vote_results: dict[int, set[str]] = defaultdict(set)
+        for row in decisions:
+            if row.result != "absent":
+                vote_results[row.vote_id].add(row.result)
+
+        total_votes = len(vote_results)
+        if total_votes == 0:
+            cohesion_score = None
+        else:
+            # A vote is cohesive when all participating members cast the same non-absent vote
+            cohesive = sum(1 for results in vote_results.values() if len(results) == 1)
+            cohesion_score = round(cohesive / total_votes, 4)
+
         return {
-            "faction_id":           faction_id,
-            "faction_name":         _safe(row.get("name", "")),
-            "cohesion_score":       None,
-            "total_votes_analyzed": 0,
-            "recent_cohesion":      [],
-            "_note": "Cohesion computation requires per-MK vote decisions, not available in public CSV data",
+            "faction_id": faction_id,
+            "faction_name": faction.name,
+            "cohesion_score": cohesion_score,
+            "total_votes_analyzed": total_votes,
+            "recent_cohesion": [],
         }
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_COH, redis)

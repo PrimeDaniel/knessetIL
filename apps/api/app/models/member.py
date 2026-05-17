@@ -48,11 +48,11 @@ class MKStats(BaseModel):
     votes_against: int = 0
     votes_abstain: int = 0
     votes_absent: int = 0
-    rebellion_rate: float = 0.0   # 0–1
-    attendance_rate: float = 0.0  # 0–1
+    rebellion_rate: float | None = None
+    attendance_rate: float | None = None
     bills_proposed: int = 0
     current_term_votes: int = 0
-    current_term_rebellion_rate: float = 0.0
+    current_term_rebellion_rate: float | None = None
 
 
 class Pagination(BaseModel):

@@ -17,10 +17,9 @@ IMPORTANT DATA LIMITATION:
   total_abstain) are provided in view_vote_rslts_hdr_approved. Rebellion rate
   computation therefore uses estimated/unavailable data and is disabled in Phase 1.
 """
+
 import io
 import logging
-import time
-from typing import Any
 
 import httpx
 import pandas as pd
@@ -34,31 +33,23 @@ settings = get_settings()
 # Base: https://production.oknesset.org/pipelines/data/
 DATASET_URLS: dict[str, str] = {
     # Members — 1,166 rows
-    "mk_individual":
-        "members/mk_individual/mk_individual.csv",
+    "mk_individual": "members/mk_individual/mk_individual.csv",
     # Faction history — 4,503 rows
-    "mk_individual_factions":
-        "members/mk_individual/mk_individual_factions.csv",
+    "mk_individual_factions": "members/mk_individual/mk_individual_factions.csv",
     # Party master list
-    "factions":
-        "members/mk_individual/factions.csv",
+    "factions": "members/mk_individual/factions.csv",
     # Bills — 60,088 rows, 14 MB, PascalCase columns
-    "kns_bill":
-        "bills/kns_bill/kns_bill.csv",
+    "kns_bill": "bills/kns_bill/kns_bill.csv",
     # Bill initiators — 169,562 rows (uses PersonID, not mk_individual_id)
-    "kns_billinitiator":
-        "bills/kns_billinitiator/kns_billinitiator.csv",
+    "kns_billinitiator": "bills/kns_billinitiator/kns_billinitiator.csv",
     # Vote results — 24,744 rows, aggregate totals only
-    "view_vote_rslts_hdr_approved":
-        "votes/view_vote_rslts_hdr_approved/view_vote_rslts_hdr_approved.csv",
+    "view_vote_rslts_hdr_approved": "votes/view_vote_rslts_hdr_approved/view_vote_rslts_hdr_approved.csv",
     # MK vote lookup — 1,111 rows (vip_id → mk_individual_id mapping ONLY)
-    "view_vote_mk_individual":
-        "votes/view_vote_mk_individual/view_vote_mk_individual.csv",
+    "view_vote_mk_individual": "votes/view_vote_mk_individual/view_vote_mk_individual.csv",
     # Per-MK vote decisions — 1,275,825 rows (vote_id, kmmbr_id, kmmbr_name,
     # vote_result [1=for 2=against 3=abstain 0=absent 4=not_participating],
     # knesset_num, faction_id, faction_name)
-    "vote_rslts_kmmbr_shadow":
-        "votes/vote_rslts_kmmbr_shadow/vote_rslts_kmmbr_shadow.csv",
+    "vote_rslts_kmmbr_shadow": "votes/vote_rslts_kmmbr_shadow/vote_rslts_kmmbr_shadow.csv",
 }
 
 
@@ -98,40 +89,11 @@ async def shutdown_http_client() -> None:
     logger.info("Shared HTTP client closed")
 
 
-# ── In-memory CSV DataFrame cache ────────────────────────────────────────────
-# Avoids re-downloading 14–85 MB CSV files on every Redis cache miss.
-# TTL matches the sync interval (6 hours by default).
-
-_CSV_CACHE_TTL = settings.oknesset_sync_interval_hours * 3600  # seconds
-
-_csv_cache: dict[str, tuple[pd.DataFrame, float]] = {}
-
-
-def invalidate_csv_cache() -> None:
-    """Clear all cached DataFrames.  Called after sync completes."""
-    _csv_cache.clear()
-    logger.info("In-memory CSV cache cleared")
-
-
 async def fetch_csv(dataset: str, timeout: float = 90.0) -> pd.DataFrame:
     """
-    Fetch a CSV dataset from oknesset and return it as a pandas DataFrame.
-
-    Uses an in-memory cache to avoid re-downloading large files on every call.
-    The cache TTL matches the sync interval so data stays fresh after a sync.
+    Download a CSV dataset from oknesset and return it as a pandas DataFrame.
+    Called only by the sync job — services read from PostgreSQL, not DataFrames.
     """
-    now = time.monotonic()
-
-    # Check in-memory cache first
-    if dataset in _csv_cache:
-        df, cached_at = _csv_cache[dataset]
-        if now - cached_at < _CSV_CACHE_TTL:
-            logger.debug("CSV cache HIT: %s (%d rows)", dataset, len(df))
-            return df
-        else:
-            logger.debug("CSV cache EXPIRED: %s", dataset)
-            del _csv_cache[dataset]
-
     url = _csv_url(dataset)
     logger.info("Fetching CSV: %s", url)
 
@@ -139,93 +101,9 @@ async def fetch_csv(dataset: str, timeout: float = 90.0) -> pd.DataFrame:
     response = await client.get(url, timeout=timeout)
     response.raise_for_status()
 
-    df = pd.read_csv(
-        io.StringIO(response.text),
-        low_memory=False,
-        encoding="utf-8",
-    )
+    df = pd.read_csv(io.StringIO(response.text), low_memory=False, encoding="utf-8")
     logger.info("Fetched %s: %d rows, %d cols", dataset, len(df), len(df.columns))
-
-    # Store in cache
-    _csv_cache[dataset] = (df, now)
     return df
-
-
-async def fetch_all_mk_data() -> dict[str, pd.DataFrame]:
-    """
-    Fetch MK profile + faction history CSVs.
-    Note: mk_individual.csv already contains the photo URL in the
-    'mk_individual_photo' column — no separate photo file needed.
-    mk_individual_positions.csv is currently empty (0 bytes), skipped.
-    """
-    import asyncio
-
-    datasets = ["mk_individual", "mk_individual_factions"]
-    results = await asyncio.gather(
-        *[fetch_csv(ds) for ds in datasets],
-        return_exceptions=True,
-    )
-    out: dict[str, pd.DataFrame] = {}
-    for ds, result in zip(datasets, results):
-        if isinstance(result, Exception):
-            logger.error("Failed to fetch %s: %s", ds, result)
-        else:
-            out[ds] = result
-    return out
-
-
-async def fetch_vote_data() -> dict[str, pd.DataFrame]:
-    """
-    Fetch vote data.
-    view_vote_rslts_hdr_approved: 24,744 vote events with aggregate totals.
-    view_vote_mk_individual: lookup table (vip_id → MK info), NOT vote decisions.
-    """
-    import asyncio
-
-    datasets = ["view_vote_rslts_hdr_approved", "view_vote_mk_individual"]
-    results = await asyncio.gather(
-        *[fetch_csv(ds) for ds in datasets],
-        return_exceptions=True,
-    )
-    out: dict[str, pd.DataFrame] = {}
-    for ds, result in zip(datasets, results):
-        if isinstance(result, Exception):
-            logger.error("Failed to fetch %s: %s", ds, result)
-        else:
-            out[ds] = result
-    return out
-
-
-async def fetch_vote_mk_decisions() -> pd.DataFrame:
-    """
-    Fetch per-MK vote decisions (85 MB, ~1.27 M rows).
-    vote_result: 1=for, 2=against, 3=abstain, 0=absent, 4=not_participating
-    Columns: vote_id, kmmbr_id, kmmbr_name, vote_result, knesset_num, faction_id, faction_name
-    Caller is responsible for caching — this file is large.
-    """
-    return await fetch_csv("vote_rslts_kmmbr_shadow", timeout=180.0)
-
-
-async def fetch_bills_data() -> dict[str, pd.DataFrame]:
-    """
-    Fetch bills + initiators.
-    kns_bill: 60,088 rows, PascalCase columns (BillID, KnessetNum, Name, StatusID...).
-    kns_billinitiator: uses PersonID (maps to mk_individual.PersonID, not mk_individual_id).
-    """
-    import asyncio
-
-    datasets = ["kns_bill", "kns_billinitiator"]
-    results = await asyncio.gather(
-        *[fetch_csv(ds) for ds in datasets],
-        return_exceptions=True,
-    )
-    out: dict[str, pd.DataFrame] = {}
-    for ds, result in zip(datasets, results):
-        if isinstance(result, Exception):
-            logger.error("Failed to fetch %s: %s", ds, result)
-        else:
-            out[ds] = result
-    return out
 
 
 # ── Knesset OData v4 API ──────────────────────────────────────────────────────
@@ -236,10 +114,10 @@ KNESSET_V4_BASE = "https://knesset.gov.il/OdataV4/ParliamentInfo"
 
 # ResultCode values in KNS_PlenumVoteResult
 V4_RESULT_CODE_MAP: dict[int, str] = {
-    7: "for",      # בעד
+    7: "for",  # בעד
     8: "against",  # נגד
     9: "abstain",  # נמנע
-    6: "absent",   # נוכח (present-but-not-voting, treated as absent)
+    6: "absent",  # נוכח (present-but-not-voting, treated as absent)
 }
 
 
@@ -397,7 +275,11 @@ async def fetch_v4_bill_item_ids(bill_id: int) -> list[int]:
             if item_id is not None:
                 ids.append(int(item_id))
     except Exception as exc:
-        logger.warning("fetch_v4_bill_item_ids: KNS_PlmSessionItem query failed for bill_id=%d: %s", bill_id, exc)
+        logger.warning(
+            "fetch_v4_bill_item_ids: KNS_PlmSessionItem query failed for bill_id=%d: %s",
+            bill_id,
+            exc,
+        )
 
     # Always include the bill_id itself as a candidate ItemID
     if bill_id not in ids:
@@ -486,7 +368,9 @@ async def fetch_v4_bill_detail(bill_id: int) -> dict | None:
         if rows:
             return rows[0]
     except Exception as exc:
-        logger.debug("fetch_v4_bill_detail: $expand failed for bill_id=%d, trying without: %s", bill_id, exc)
+        logger.debug(
+            "fetch_v4_bill_detail: $expand failed for bill_id=%d, trying without: %s", bill_id, exc
+        )
 
     # Fallback: fetch without $expand (some v4 endpoints reject nested expands)
     try:
@@ -535,9 +419,7 @@ async def fetch_v4_mk_faction_map() -> dict[str, dict]:
                 # Omit PositionID filter — ministers and committee chairs keep their
                 # faction but change PositionID away from 54 (member of Knesset).
                 # Deduplicate later by keeping the first entry seen per person.
-                params={
-                    "$filter": "KnessetNum eq 25 and FactionID ne null and IsCurrent eq true"
-                },
+                params={"$filter": "KnessetNum eq 25 and FactionID ne null and IsCurrent eq true"},
             ),
         )
     except Exception as exc:
@@ -576,9 +458,7 @@ async def fetch_v4_mk_faction_map() -> dict[str, dict]:
             key = f"{last}_{first}"
             name_key_to_faction[key] = person_id_to_faction[pid]
 
-    logger.info(
-        "fetch_v4_mk_faction_map: built %d name→faction entries", len(name_key_to_faction)
-    )
+    logger.info("fetch_v4_mk_faction_map: built %d name→faction entries", len(name_key_to_faction))
     return name_key_to_faction
 
 
@@ -619,7 +499,7 @@ async def fetch_v4_current_knesset_members() -> list[dict]:
         if pid is not None:
             person_map[int(pid)] = {
                 "first_name": (p.get("FirstName") or "").strip(),
-                "last_name":  (p.get("LastName")  or "").strip(),
+                "last_name": (p.get("LastName") or "").strip(),
                 "gender_desc": (p.get("GenderDesc") or "").strip(),
                 "email": p.get("Email"),
             }
@@ -638,19 +518,21 @@ async def fetch_v4_current_knesset_members() -> list[dict]:
 
         person = person_map.get(pid_int, {})
         first = person.get("first_name", "")
-        last  = person.get("last_name",  "")
+        last = person.get("last_name", "")
         full_name = f"{first} {last}".strip() if first and last else first or last
 
-        result.append({
-            "person_id":   pid_int,
-            "first_name":  first,
-            "last_name":   last,
-            "full_name":   full_name,
-            "faction_id":  int(pos["FactionID"]) if pos.get("FactionID") else None,
-            "faction_name": (pos.get("FactionName") or "").strip(),
-            "gender_desc": person.get("gender_desc", ""),
-            "email":       person.get("email"),
-        })
+        result.append(
+            {
+                "person_id": pid_int,
+                "first_name": first,
+                "last_name": last,
+                "full_name": full_name,
+                "faction_id": int(pos["FactionID"]) if pos.get("FactionID") else None,
+                "faction_name": (pos.get("FactionName") or "").strip(),
+                "gender_desc": person.get("gender_desc", ""),
+                "email": person.get("email"),
+            }
+        )
 
     logger.info("fetch_v4_current_knesset_members: %d current K25 members", len(result))
     return result
