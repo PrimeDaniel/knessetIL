@@ -9,6 +9,7 @@ import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { Skeleton } from "@/components/shared/SkeletonCard";
 import { useBill, useBillVotes } from "@/hooks/useBills";
 import { formatDateHe, cn } from "@/lib/utils";
+import { notFound } from "next/navigation";
 import {
   ChevronRight, Calendar, User2, FileText,
   CheckCircle2, XCircle, AlertCircle, Building2, Hash,
@@ -31,6 +32,7 @@ function statusAccentBar(statusId: number) {
 
 export default function BillDetailPage({ params }: { params: { id: string } }) {
   const billId = parseInt(params.id, 10);
+  if (isNaN(billId)) notFound();
 
   const { data: bill, isLoading, isError } = useBill(billId);
   const { data: voteDetail, isLoading: voteLoading } = useBillVotes(billId);

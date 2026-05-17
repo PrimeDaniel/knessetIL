@@ -16,6 +16,15 @@ class ApiError extends Error {
   }
 }
 
+function buildQueryString(params: object): string {
+  const qs = new URLSearchParams(
+    Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => [k, String(v)])
+  ).toString();
+  return qs ? `?${qs}` : "";
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
@@ -53,14 +62,8 @@ import type {
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
 export const billsApi = {
-  list: (params: BillListParams = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(params)
-        .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => [k, String(v)])
-    ).toString();
-    return apiFetch<PaginatedResponse<Bill>>(`/api/v1/bills${qs ? `?${qs}` : ""}`);
-  },
+  list: (params: BillListParams = {}) =>
+    apiFetch<PaginatedResponse<Bill>>(`/api/v1/bills${buildQueryString(params)}`),
 
   get: (billId: number) =>
     apiFetch<BillDetail>(`/api/v1/bills/${billId}`),
@@ -71,14 +74,8 @@ export const billsApi = {
 
 // ── Members ───────────────────────────────────────────────────────────────────
 export const membersApi = {
-  list: (params: MKListParams = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(params)
-        .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => [k, String(v)])
-    ).toString();
-    return apiFetch<PaginatedResponse<MKProfile>>(`/api/v1/members${qs ? `?${qs}` : ""}`);
-  },
+  list: (params: MKListParams = {}) =>
+    apiFetch<PaginatedResponse<MKProfile>>(`/api/v1/members${buildQueryString(params)}`),
 
   get: (mkId: number) =>
     apiFetch<MKProfile>(`/api/v1/members/${mkId}`),
@@ -94,14 +91,8 @@ export const membersApi = {
 
 // ── Parties ───────────────────────────────────────────────────────────────────
 export const partiesApi = {
-  list: (params: PartyListParams = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(params)
-        .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => [k, String(v)])
-    ).toString();
-    return apiFetch<PaginatedResponse<Faction>>(`/api/v1/parties${qs ? `?${qs}` : ""}`);
-  },
+  list: (params: PartyListParams = {}) =>
+    apiFetch<PaginatedResponse<Faction>>(`/api/v1/parties${buildQueryString(params)}`),
 
   get: (factionId: number) =>
     apiFetch<FactionDetail>(`/api/v1/parties/${factionId}`),
@@ -112,14 +103,8 @@ export const partiesApi = {
 
 // ── Votes ─────────────────────────────────────────────────────────────────────
 export const votesApi = {
-  list: (params: VoteListParams = {}) => {
-    const qs = new URLSearchParams(
-      Object.entries(params)
-        .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => [k, String(v)])
-    ).toString();
-    return apiFetch<PaginatedResponse<VoteResult>>(`/api/v1/votes${qs ? `?${qs}` : ""}`);
-  },
+  list: (params: VoteListParams = {}) =>
+    apiFetch<PaginatedResponse<VoteResult>>(`/api/v1/votes${buildQueryString(params)}`),
 
   get: (voteId: number) =>
     apiFetch<VoteDetail>(`/api/v1/votes/${voteId}`),

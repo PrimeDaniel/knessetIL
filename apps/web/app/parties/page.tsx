@@ -5,6 +5,8 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { FactionCard } from "@/components/parties/FactionCard";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { useParties } from "@/hooks/useParties";
 
 const KNESSET_OPTIONS = [
@@ -92,11 +94,7 @@ export default function PartiesPage() {
           )}
         </div>
 
-        {isError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            שגיאה בטעינת נתונים. אנא נסה שוב.
-          </div>
-        )}
+        {isError && <ErrorState />}
 
         {isLoading && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,9 +107,7 @@ export default function PartiesPage() {
         {data && !isLoading && (
           <>
             {data.data.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground">
-                לא נמצאו סיעות.
-              </div>
+              <EmptyState message="לא נמצאו סיעות." className="py-16" />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {data.data.map((faction) => (

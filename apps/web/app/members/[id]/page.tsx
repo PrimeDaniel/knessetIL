@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { notFound } from "next/navigation";
 import { ArrowRight, Mail, Phone, ExternalLink } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -26,6 +27,7 @@ function StatItem({ label, value }: StatItemProps) {
 
 export default function MemberProfilePage({ params }: { params: { id: string } }) {
   const mkId = parseInt(params.id, 10);
+  if (isNaN(mkId)) notFound();
   const { data: mk, isLoading, isError } = useMember(mkId);
   const { data: stats } = useMemberStats(mkId);
 

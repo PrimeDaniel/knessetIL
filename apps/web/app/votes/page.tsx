@@ -7,13 +7,15 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Pagination } from "@/components/shared/Pagination";
 import { SkeletonList } from "@/components/shared/SkeletonCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { useVotes, useVoteDetail } from "@/hooks/useVotes";
 import { formatDateHe, cn } from "@/lib/utils";
 import type { VoteResult } from "@knesset/types";
 import {
-  Vote, AlertCircle, CheckCircle2, XCircle,
+  Vote, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Loader2, ExternalLink,
 } from "lucide-react";
 
@@ -73,25 +75,14 @@ export default function VotesPage() {
           </div>
         </div>
 
-        {isError && (
-          <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/8 p-4 text-sm text-destructive mb-4">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium">שגיאה בטעינת נתונים</p>
-              <p className="text-xs mt-0.5 opacity-80">ודאו שהשרת פועל ונסו לרענן את הדף.</p>
-            </div>
-          </div>
-        )}
+        {isError && <ErrorState className="mb-4" />}
 
         {isLoading && <SkeletonList rows={12} />}
 
         {data && !isLoading && (
           <>
             {data.data.length === 0 ? (
-              <div className="py-20 text-center">
-                <Vote className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                <p className="text-muted-foreground">לא נמצאו הצבעות.</p>
-              </div>
+              <EmptyState icon={Vote} message="לא נמצאו הצבעות." />
             ) : (
               <div className="flex flex-col gap-3">
                 {data.data.map((vote) => (

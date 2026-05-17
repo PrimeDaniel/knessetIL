@@ -9,8 +9,10 @@ import { BillCard } from "@/components/bills/BillCard";
 import { BillModal } from "@/components/bills/BillModal";
 import { Pagination } from "@/components/shared/Pagination";
 import { SkeletonList } from "@/components/shared/SkeletonCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { useBills } from "@/hooks/useBills";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText } from "lucide-react";
 
 export default function BillsPage() {
   const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
@@ -56,16 +58,7 @@ export default function BillsPage() {
         {/* Filters */}
         <BillFilterBar className="mb-6" />
 
-        {/* Error */}
-        {isError && (
-          <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/8 p-4 text-sm text-destructive mb-4">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium">שגיאה בטעינת נתונים</p>
-              <p className="text-xs mt-0.5 opacity-80">ודאו שהשרת פועל ונסו לרענן את הדף.</p>
-            </div>
-          </div>
-        )}
+        {isError && <ErrorState className="mb-4" />}
 
         {/* Loading */}
         {isLoading && <SkeletonList rows={10} />}
@@ -74,10 +67,7 @@ export default function BillsPage() {
         {data && !isLoading && (
           <>
             {data.data.length === 0 ? (
-              <div className="py-20 text-center">
-                <FileText className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                <p className="text-muted-foreground">לא נמצאו הצעות חוק התואמות את החיפוש.</p>
-              </div>
+              <EmptyState icon={FileText} message="לא נמצאו הצעות חוק התואמות את החיפוש." />
             ) : (
               <div className="flex flex-col gap-2">
                 {data.data.map((bill) => (

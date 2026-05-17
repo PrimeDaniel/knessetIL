@@ -12,7 +12,7 @@ import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { formatDateHe } from "@/lib/utils";
 import type { RecentVote } from "@knesset/types";
 import {
-  CheckCircle2, XCircle, FileText, Scale,
+  CheckCircle2, XCircle, FileText, Scale, Users,
   ChevronLeft, ChevronRight, BarChart3, TrendingUp, ArrowLeft,
   Vote, X, ExternalLink,
 } from "lucide-react";
@@ -96,11 +96,10 @@ export function HomeDashboard() {
       {/* Stats */}
       <section>
         <SectionHeader icon={BarChart3} title={`סטטיסטיקות — כנסת ${data.knesset_num}`} />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <StatCard label="הצבעות השנה" value={data.total_votes_this_knesset} />
-          <StatCard label="עברו" value={data.total_votes_accepted} accent="for" icon={CheckCircle2} />
-          <StatCard label="נדחו" value={data.total_votes_rejected} accent="against" icon={XCircle} />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+          <StatCard label="הצבעות" value={data.total_votes_this_knesset} />
           <StatCard label="הצעות חוק" value={data.total_bills} />
+          <StatCard label="חברי כנסת" value={data.total_active_mks} icon={Users} />
         </div>
       </section>
 
@@ -446,18 +445,6 @@ function PercentTile({ label, count, total, colorClass }: {
     <div className={cn("rounded-lg border px-3 py-2.5 text-center", colorClass)}>
       <p className="text-lg font-bold tabular-nums leading-none">{pct}%</p>
       <p className="text-[11px] font-medium mt-1">{count.toLocaleString("he-IL")} {label}</p>
-    </div>
-  );
-}
-
-function MetaTile({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-0.5">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <p className="text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

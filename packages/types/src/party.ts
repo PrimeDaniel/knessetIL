@@ -20,7 +20,7 @@ export interface FactionDetail extends Faction {
     mk_individual_id: number;
     mk_individual_name: string;
     is_current: boolean;
-    rebellion_rate: number;
+    rebellion_rate: number | null;
   }>;
 }
 
@@ -28,7 +28,7 @@ export interface FactionDetail extends Faction {
 export interface FactionCohesionData {
   faction_id: number;
   faction_name: string;
-  cohesion_score: number;        // 0–1
+  cohesion_score: number | null; // 0–1, null if insufficient vote data
   total_votes_analyzed: number;
   // Recent vote items for timeline chart
   recent_cohesion: Array<{

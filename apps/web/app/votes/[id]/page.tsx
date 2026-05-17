@@ -8,6 +8,7 @@ import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { Skeleton } from "@/components/shared/SkeletonCard";
 import { useVoteDetail } from "@/hooks/useVotes";
 import { formatDateHe, cn } from "@/lib/utils";
+import { notFound } from "next/navigation";
 import {
   Vote, CheckCircle2, XCircle, AlertCircle,
   ChevronRight, Calendar, Hash,
@@ -15,6 +16,7 @@ import {
 
 export default function VoteDetailPage({ params }: { params: { id: string } }) {
   const voteId = parseInt(params.id, 10);
+  if (isNaN(voteId)) notFound();
   const { data: vote, isLoading, isError } = useVoteDetail(voteId);
 
   if (isError) {

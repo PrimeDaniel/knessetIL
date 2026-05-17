@@ -7,6 +7,8 @@ import { Footer } from "@/components/layout/Footer";
 import { MKCard } from "@/components/members/MKCard";
 import { SearchInput } from "@/components/shared/SearchInput";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { useMembers } from "@/hooks/useMembers";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Users, ChevronLeft } from "lucide-react";
@@ -16,8 +18,9 @@ function groupByFaction(members: MKProfile[]): [string, MKProfile[]][] {
   const map = new Map<string, MKProfile[]>();
   for (const mk of members) {
     const key = mk.current_faction?.name ?? "ללא סיעה";
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(mk);
+    const group = map.get(key) ?? [];
+    group.push(mk);
+    map.set(key, group);
   }
   return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
 }
@@ -75,11 +78,7 @@ export default function MembersPage() {
           />
         </div>
 
-        {isError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive mb-6">
-            שגיאה בטעינת נתונים. אנא נסה שוב.
-          </div>
-        )}
+        {isError && <ErrorState className="mb-6" />}
 
         {/* Loading skeleton */}
         {isLoading && (
@@ -101,9 +100,7 @@ export default function MembersPage() {
         {!isLoading && (
           <>
             {filtered.length === 0 && (
-              <div className="py-16 text-center text-muted-foreground">
-                לא נמצאו חברי כנסת התואמים את החיפוש.
-              </div>
+              <EmptyState message="לא נמצאו חברי כנסת התואמים את החיפוש." className="py-16" />
             )}
 
             <div className="space-y-10">

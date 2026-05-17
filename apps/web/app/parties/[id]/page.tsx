@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ArrowRight, Users } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -10,6 +11,7 @@ import { useParty } from "@/hooks/useParties";
 
 export default function PartyProfilePage({ params }: { params: { id: string } }) {
   const factionId = parseInt(params.id, 10);
+  if (isNaN(factionId)) notFound();
   const { data: faction, isLoading, isError } = useParty(factionId);
 
   useEffect(() => {
