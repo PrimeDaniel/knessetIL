@@ -41,7 +41,14 @@
       "WebFetch(domain:m.knesset.gov.il)",
       "mcp__playwright__browser_network_requests",
       "Bash(.\\\\venv\\\\Scripts\\\\python.exe *)",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "Bash(Get-Content *)",
+      "Bash(pnpm -F @knesset/types build)",
+      "Bash(.\\\\venv\\\\Scripts\\\\activate)",
+      "Bash(ruff check *)",
+      "PowerShell(D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api\\\\venv\\\\Scripts\\\\ruff.exe check D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api 2>&1)",
+      "PowerShell(D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api\\\\venv\\\\Scripts\\\\ruff.exe check D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api --fix 2>&1)",
+      "PowerShell(D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api\\\\venv\\\\Scripts\\\\ruff.exe format D:\\\\GeneralRepos\\\\knessetIL\\\\apps\\\\api 2>&1)"
     ],
     "defaultMode": "auto"
   }
