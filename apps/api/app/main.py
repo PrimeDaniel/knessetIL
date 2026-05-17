@@ -2,19 +2,17 @@
 KnessetIL FastAPI application entry point.
 
 Architecture:
-  - Fetches CSV data from production.oknesset.org/pipelines/data/
-  - Normalises with pandas, caches in Redis
+  - Syncs CSV data from production.oknesset.org into PostgreSQL every 6 hours
+  - Caches computed API responses in Redis (response cache, not data store)
   - Serves clean JSON REST API to the Next.js frontend
-  - Background APScheduler job syncs CSVs every 6 hours
 """
-import logging
 
+import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -23,33 +21,21 @@ from app.config import get_settings
 from app.routers import bills, members, parties, stats, votes
 from app.tasks.sync import run_sync
 from app.services.oknesset_client import shutdown_http_client
-from app.services.mk_snapshot_service import get_snapshot
-from app.deps import get_redis_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-# ── Rate limiter ──────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
-
-# ── Background scheduler ──────────────────────────────────────────────────────
 scheduler = AsyncIOScheduler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    logger.info("Starting KnessetIL API (env=%s)", settings.app_env)
-
-    # Warm the MK snapshot (Redis → file → fresh fetch)
-    redis = get_redis_client()
-    try:
-        mks = await get_snapshot(redis)
-        logger.info("MK snapshot ready: %d members", len(mks))
-    except Exception as exc:
-        logger.warning("MK snapshot warm-up failed (will retry on first request): %s", exc)
+    logger.info(
+        "Starting KnessetIL API (env=%s, knesset=%d)", settings.app_env, settings.current_knesset
+    )
 
     scheduler.add_job(
         run_sync,
@@ -61,45 +47,39 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("CSV sync scheduler started (interval=%dh)", settings.oknesset_sync_interval_hours)
 
-    yield  # App runs here
+    yield
 
-    # Shutdown
     scheduler.shutdown(wait=False)
     await shutdown_http_client()
     logger.info("Scheduler and HTTP client shut down")
 
 
-# ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="KnessetIL API",
     description="Civic transparency API — normalised data from Open Knesset CSV datasets",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
     allow_credentials=True,
-    allow_methods=["GET"],  # read-only API
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
 
-# ── Rate limiting ─────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 
-# ── Health check ──────────────────────────────────────────────────────────────
 @app.get("/api/v1/health", tags=["system"])
-async def health(request: Request):
+async def health():
     return {"status": "ok", "env": settings.app_env}
 
 
-# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(bills.router, prefix="/api/v1/bills", tags=["bills"])
 app.include_router(members.router, prefix="/api/v1/members", tags=["members"])
 app.include_router(parties.router, prefix="/api/v1/parties", tags=["parties"])
