@@ -17,7 +17,7 @@ export function FactionCard({ faction, className }: FactionCardProps) {
       href={`/parties/${faction.id}`}
       className={cn(
         "block rounded-lg border border-border bg-card p-4",
-        "hover:bg-accent/30 hover:border-primary/30 transition-colors",
+        "hover:bg-accent/30 hover:border-primary/30 hover:-translate-y-0.5 hover:shadow-card-md transition-all",
         "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
         className
       )}

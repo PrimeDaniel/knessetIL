@@ -62,7 +62,7 @@ export function VoteBreakdownBar({
           <div
             key={d.name}
             style={{ width: `${(d.value / total) * 100}%`, backgroundColor: d.color }}
-            className="flex items-center justify-center text-[10px] font-bold text-white transition-all"
+            className="flex items-center justify-center text-[10px] font-bold text-white transition-all animate-bar-grow origin-right"
             title={`${d.name}: ${d.value} (${d.pct}%)`}
           >
             {d.pct >= 10 ? `${d.pct}%` : ""}
