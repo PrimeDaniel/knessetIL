@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.deps import DbDep, RedisDep, SettingsDep
+from app.deps import DbDep, SettingsDep
 from app.services import votes_service
 
 router = APIRouter()
@@ -8,7 +8,6 @@ router = APIRouter()
 @router.get("")
 async def get_votes(
     db: DbDep,
-    redis: RedisDep,
     settings: SettingsDep,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -19,7 +18,6 @@ async def get_votes(
 ):
     return await votes_service.list_votes(
         db,
-        redis,
         page=page,
         limit=limit,
         knesset_num=knesset_num,
@@ -31,8 +29,8 @@ async def get_votes(
 
 
 @router.get("/{vote_id}")
-async def get_vote(vote_id: int, db: DbDep, redis: RedisDep):
-    vote = await votes_service.get_vote_detail(vote_id, db, redis)
+async def get_vote(vote_id: int, db: DbDep):
+    vote = await votes_service.get_vote_detail(vote_id, db)
     if vote is None:
         raise HTTPException(status_code=404, detail=f"Vote {vote_id} not found")
     return vote
