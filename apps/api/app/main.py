@@ -3,7 +3,7 @@ KnessetIL FastAPI application entry point.
 
 Architecture:
   - Syncs CSV data from production.oknesset.org into PostgreSQL every 6 hours
-  - Caches computed API responses in Redis (response cache, not data store)
+  - Caches computed API responses in-process (TTL dict, invalidated after each sync)
   - Serves clean JSON REST API to the Next.js frontend
 """
 
