@@ -40,7 +40,7 @@ export default function VotesPage() {
     <div className="flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="mb-6 flex items-end justify-between gap-4 animate-fade-up">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Vote className="h-5 w-5 text-primary" />
@@ -85,8 +85,8 @@ export default function VotesPage() {
               <EmptyState icon={Vote} message="לא נמצאו הצבעות." />
             ) : (
               <div className="flex flex-col gap-3">
-                {data.data.map((vote) => (
-                  <VoteListCard key={vote.id} vote={vote} />
+                {data.data.map((vote, i) => (
+                  <VoteListCard key={vote.id} vote={vote} index={i} />
                 ))}
               </div>
             )}
@@ -134,7 +134,7 @@ function FilterChip({
   );
 }
 
-function VoteListCard({ vote }: { vote: VoteResult }) {
+function VoteListCard({ vote, index = 0 }: { vote: VoteResult; index?: number }) {
   const [expanded, setExpanded] = useState(false);
   const { data: detail, isLoading: detailLoading } = useVoteDetail(vote.id, expanded);
 
@@ -155,9 +155,10 @@ function VoteListCard({ vote }: { vote: VoteResult }) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card shadow-card overflow-hidden transition-all",
+        "rounded-xl border bg-card shadow-card overflow-hidden transition-all animate-fade-up",
         expanded ? "border-primary/30 shadow-card-md" : "border-border hover:border-primary/20 hover:shadow-card-md"
       )}
+      style={{ animationDelay: `${index * 40}ms` }}
     >
       <div className={cn("h-1 w-full", vote.is_accepted ? "bg-gradient-to-l from-green-500 to-emerald-400" : "bg-gradient-to-l from-red-500 to-rose-400")} />
 
@@ -234,7 +235,7 @@ function VoteListCard({ vote }: { vote: VoteResult }) {
       </button>
 
       {expanded && (
-        <div className="border-t border-border bg-muted/30 px-4 py-4 space-y-4">
+        <div className="border-t border-border bg-muted/30 px-4 py-4 space-y-4 animate-fade-up">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">פירוט ההצבעה</p>
             <VoteBreakdownBar

@@ -73,7 +73,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         {/* Breadcrumb */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground animate-fade-up">
           <Link href="/members" className="hover:text-foreground flex items-center gap-1">
             <ArrowRight className="h-3.5 w-3.5" />
             חברי כנסת
@@ -83,7 +83,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         </nav>
 
         {/* Profile header */}
-        <div className="mb-6 flex items-start gap-5">
+        <div className="mb-6 flex items-start gap-5 animate-fade-up [animation-delay:60ms]">
           <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
             {mk.mk_individual_photo ? (
               <Image
@@ -143,7 +143,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
         {/* Knesset sessions */}
         {mk.knessets.length > 0 && (
-          <div className="mb-6 flex flex-wrap gap-1.5">
+          <div className="mb-6 flex flex-wrap gap-1.5 animate-fade-up [animation-delay:120ms]">
             {mk.knessets.sort((a, b) => b - a).map((k) => (
               <span
                 key={k}
@@ -157,7 +157,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
         {/* Stats */}
         {stats && (
-          <section className="mb-6">
+          <section className="mb-6 animate-fade-up [animation-delay:180ms]">
             <h2 className="mb-3 text-sm font-semibold">סטטיסטיקות</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <StatItem label="הצעות חוק" value={stats.bills_proposed} />
@@ -172,7 +172,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
         {/* Faction history */}
         {mk.faction_history.length > 0 && (
-          <section className="mb-6">
+          <section className="mb-6 animate-fade-up [animation-delay:240ms]">
             <h2 className="mb-3 text-sm font-semibold">היסטוריית סיעות</h2>
             <div className="space-y-1.5">
               {mk.faction_history.map((fh, i) => (
@@ -190,7 +190,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
         {/* Positions */}
         {mk.positions.length > 0 && (
-          <section className="mb-6">
+          <section className="mb-6 animate-fade-up [animation-delay:300ms]">
             <h2 className="mb-3 text-sm font-semibold">תפקידים</h2>
             <div className="space-y-1.5">
               {mk.positions.slice(0, 10).map((pos) => (
@@ -209,7 +209,7 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
         )}
 
         {/* Voting history */}
-        <section className="mb-6">
+        <section className="mb-6 animate-fade-up [animation-delay:360ms]">
           <h2 className="mb-3 text-sm font-semibold">היסטוריית הצבעות</h2>
           <VotingHistoryTable mkId={mkId} />
         </section>

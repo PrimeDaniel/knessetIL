@@ -19,7 +19,6 @@ import logging
 import math
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,20 +131,19 @@ def _build_party_breakdown(mk_votes: list[dict]) -> list[dict]:
     )
 
 
-async def _get_mk_faction_map(redis: aioredis.Redis) -> dict[str, dict]:
+async def _get_mk_faction_map() -> dict[str, dict]:
     cache_key = "votes:v4:mk_faction_map"
 
     async def factory() -> dict:
         return await fetch_v4_mk_faction_map()
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_FK_MAP, redis)
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_FK_MAP)
 
 
 # ── OData v4 service functions ────────────────────────────────────────────────
 
 
 async def list_votes_v4(
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     is_accepted: bool | None = None,
@@ -186,16 +184,16 @@ async def list_votes_v4(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_LIST)
 
 
-async def get_vote_detail_v4(vote_id: int, redis: aioredis.Redis) -> dict | None:
+async def get_vote_detail_v4(vote_id: int) -> dict | None:
     cache_key = f"votes:v4:detail:{vote_id}"
 
     async def factory() -> dict | None:
         vote_row, faction_map = await asyncio.gather(
             fetch_v4_vote_with_results(vote_id),
-            _get_mk_faction_map(redis),
+            _get_mk_faction_map(),
         )
         if not vote_row:
             return None
@@ -246,7 +244,7 @@ async def get_vote_detail_v4(vote_id: int, redis: aioredis.Redis) -> dict | None
         vote_dict["party_breakdown"] = _build_party_breakdown(mk_votes)
         return vote_dict
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_DETAIL, redis)
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_DETAIL)
 
 
 # ── PostgreSQL path (Knesset ≤ 24) ───────────────────────────────────────────
@@ -273,7 +271,6 @@ def _vote_header_to_dict(v: VoteHeader) -> dict:
 
 async def list_votes_db(
     db: AsyncSession,
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     knesset_num: int | None = None,
@@ -322,10 +319,10 @@ async def list_votes_db(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_VOTES_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_VOTES_LIST)
 
 
-async def get_vote_detail_db(vote_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
+async def get_vote_detail_db(vote_id: int, db: AsyncSession) -> dict | None:
     cache_key = f"votes:detail:{vote_id}"
 
     async def factory() -> dict | None:
@@ -360,7 +357,7 @@ async def get_vote_detail_db(vote_id: int, db: AsyncSession, redis: aioredis.Red
         base["party_breakdown"] = _build_party_breakdown(mk_votes)
         return base
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_VOTE_DETAIL, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_VOTE_DETAIL)
 
 
 # ── Unified entry points ───────────────────────────────────────────────────────
@@ -368,7 +365,6 @@ async def get_vote_detail_db(vote_id: int, db: AsyncSession, redis: aioredis.Red
 
 async def list_votes(
     db: AsyncSession,
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     knesset_num: int | None = None,
@@ -378,10 +374,9 @@ async def list_votes(
     current_knesset: int = 25,
 ) -> dict:
     if knesset_num is None or knesset_num >= current_knesset:
-        return await list_votes_v4(redis, page=page, limit=limit, is_accepted=is_accepted)
+        return await list_votes_v4(page=page, limit=limit, is_accepted=is_accepted)
     return await list_votes_db(
         db,
-        redis,
         page=page,
         limit=limit,
         knesset_num=knesset_num,
@@ -394,18 +389,17 @@ async def list_votes(
 async def get_vote_detail(
     vote_id: int,
     db: AsyncSession,
-    redis: aioredis.Redis,
 ) -> dict | None:
     if vote_id > _V4_VOTE_ID_THRESHOLD:
-        result = await get_vote_detail_v4(vote_id, redis)
+        result = await get_vote_detail_v4(vote_id)
         if result is not None:
             return result
         logger.info("get_vote_detail: v4 returned None for vote_id=%d, trying DB", vote_id)
 
-    return await get_vote_detail_db(vote_id, db, redis)
+    return await get_vote_detail_db(vote_id, db)
 
 
-async def get_votes_for_bill(bill_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
+async def get_votes_for_bill(bill_id: int, db: AsyncSession) -> dict | None:
     cache_key = f"bills:votes:{bill_id}"
 
     async def factory() -> dict | None:
@@ -431,7 +425,7 @@ async def get_votes_for_bill(bill_id: int, db: AsyncSession, redis: aioredis.Red
             vote_rows.sort(key=lambda r: r.get("VoteDateTime") or "", reverse=True)
             vote_id = int(vote_rows[0].get("Id") or 0)
             if vote_id:
-                return await get_vote_detail_v4(vote_id, redis)
+                return await get_vote_detail_v4(vote_id)
 
         # Step 2: PostgreSQL fallback for K≤24 bills
         if item_ids:
@@ -443,8 +437,8 @@ async def get_votes_for_bill(bill_id: int, db: AsyncSession, redis: aioredis.Red
             )
             header = result.scalar_one_or_none()
             if header is not None:
-                return await get_vote_detail_db(header.vote_id, db, redis)
+                return await get_vote_detail_db(header.vote_id, db)
 
         return None
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_DETAIL, redis)
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_DETAIL)

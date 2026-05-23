@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +40,6 @@ def _faction_to_dict(faction: Faction, member_count: int) -> dict:
 
 async def list_parties(
     db: AsyncSession,
-    redis: aioredis.Redis,
     knesset_num: int | None = None,
     is_active: bool | None = None,
 ) -> dict:
@@ -83,10 +81,10 @@ async def list_parties(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST)
 
 
-async def get_party_detail(faction_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
+async def get_party_detail(faction_id: int, db: AsyncSession) -> dict | None:
     cache_key = f"parties:detail:{faction_id}"
 
     async def factory() -> dict | None:
@@ -121,11 +119,11 @@ async def get_party_detail(faction_id: int, db: AsyncSession, redis: aioredis.Re
         out["members"] = members
         return out
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_LIST)
 
 
 async def get_party_cohesion(
-    faction_id: int, db: AsyncSession, redis: aioredis.Redis
+    faction_id: int, db: AsyncSession
 ) -> dict | None:
     cache_key = f"parties:cohesion:{faction_id}"
 
@@ -180,4 +178,4 @@ async def get_party_cohesion(
             "recent_cohesion": [],
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_COH, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_PARTY_COH)

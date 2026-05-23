@@ -7,10 +7,9 @@ Fields: MkId, Firstname, Lastname, FactionId, FactionName, ImagePath,
         Facebook, Twitter, Instegram, Youtube, WebsiteUrl
 
 Storage (two-layer for permanence):
-  1. JSON file: apps/api/data/knesset_mks.json
-     — survives Redis flushes and server restarts; the true durable store
-  2. Redis key: "mk:snapshot:current"  (no TTL — permanent until refresh)
-     — fast access layer; warmed from file on startup
+  1. Module-level variable (_snapshot_cache) — fast in-process access; lost on restart
+  2. JSON file: apps/api/data/knesset_mks.json
+     — survives process restarts; the true durable store; warms the module var on startup
 
 MkId from the Knesset lobby API equals PersonID in the Open Knesset CSV,
 which is the same as KNS_Person.Id in OData v4.  We join on this key to
@@ -27,13 +26,14 @@ from typing import Any
 
 import httpx
 import pandas as pd
-import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
 MK_LOBBY_URL = "https://www.knesset.gov.il/WebSiteApi/knessetapi/MkLobby/GetMkLobbyData?lang=he"
-REDIS_KEY = "mk:snapshot:current"
 DATA_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "knesset_mks.json"
+
+# In-process snapshot — populated on first access and after each refresh
+_snapshot_cache: list[dict] | None = None
 
 
 def _safe(val: Any) -> Any:
@@ -162,11 +162,13 @@ async def _build_profiles(raw_mks: list[dict]) -> list[dict]:
     return profiles
 
 
-async def fetch_and_store(redis: aioredis.Redis) -> list[dict]:
+async def fetch_and_store() -> list[dict]:
     """
-    Full refresh: fetch from Knesset API → join CSV → persist to file + Redis.
+    Full refresh: fetch from Knesset API → join CSV → persist to file + update module cache.
     Call this on startup (if no snapshot exists) or via the /refresh endpoint.
     """
+    global _snapshot_cache
+
     raw_mks = await _fetch_raw_mks()
     profiles = await _build_profiles(raw_mks)
 
@@ -176,51 +178,39 @@ async def fetch_and_store(redis: aioredis.Redis) -> list[dict]:
         "count": len(profiles),
     }
 
-    # 1. Write JSON file (permanent, survives Redis restart)
+    # Persist to JSON file (survives process restarts)
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     with DATA_FILE.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
     logger.info("MK snapshot written to %s (%d members)", DATA_FILE, len(profiles))
 
-    # 2. Store in Redis with no TTL (permanent until next refresh or FLUSHDB)
-    try:
-        await redis.set(REDIS_KEY, json.dumps(payload, ensure_ascii=False, default=str))
-        logger.info("MK snapshot stored in Redis key '%s' (no TTL)", REDIS_KEY)
-    except Exception as exc:
-        logger.warning("Could not write MK snapshot to Redis: %s", exc)
+    # Update in-process cache
+    _snapshot_cache = profiles
 
     return profiles
 
 
-async def get_snapshot(redis: aioredis.Redis) -> list[dict]:
+async def get_snapshot() -> list[dict]:
     """
-    Load snapshot with priority: Redis → file → fresh fetch.
+    Load snapshot with priority: module var → file → fresh fetch.
     Never raises — returns [] on total failure.
     """
-    # 1. Redis (fastest)
-    try:
-        cached = await redis.get(REDIS_KEY)
-        if cached:
-            data = json.loads(cached)
-            mks = data.get("mks", [])
-            if mks:
-                logger.debug("MK snapshot loaded from Redis (%d members)", len(mks))
-                return mks
-    except Exception as exc:
-        logger.warning("Redis read failed for MK snapshot: %s", exc)
+    global _snapshot_cache
 
-    # 2. File (permanent on disk)
+    # 1. Module-level variable (fastest, zero I/O)
+    if _snapshot_cache is not None:
+        logger.debug("MK snapshot loaded from module cache (%d members)", len(_snapshot_cache))
+        return _snapshot_cache
+
+    # 2. JSON file (survives restarts)
     if DATA_FILE.exists():
         try:
             with DATA_FILE.open("r", encoding="utf-8") as fh:
                 data = json.load(fh)
             mks = data.get("mks", [])
             if mks:
-                logger.info("MK snapshot loaded from file (%d members) — warming Redis", len(mks))
-                try:
-                    await redis.set(REDIS_KEY, json.dumps(data, ensure_ascii=False, default=str))
-                except Exception:
-                    pass
+                logger.info("MK snapshot loaded from file (%d members)", len(mks))
+                _snapshot_cache = mks
                 return mks
         except Exception as exc:
             logger.warning("Failed to read MK snapshot file: %s", exc)
@@ -228,7 +218,7 @@ async def get_snapshot(redis: aioredis.Redis) -> list[dict]:
     # 3. Fresh fetch (no snapshot anywhere)
     logger.info("No MK snapshot found — fetching fresh from Knesset API")
     try:
-        return await fetch_and_store(redis)
+        return await fetch_and_store()
     except Exception as exc:
         logger.error("MK snapshot fetch failed: %s", exc)
         return []

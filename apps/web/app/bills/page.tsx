@@ -41,7 +41,7 @@ export default function BillsPage() {
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
         {/* Page header */}
-        <div className="mb-6 flex items-end justify-between gap-4">
+        <div className="mb-6 flex items-end justify-between gap-4 animate-fade-up">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <FileText className="h-5 w-5 text-primary" />
@@ -70,8 +70,10 @@ export default function BillsPage() {
               <EmptyState icon={FileText} message="לא נמצאו הצעות חוק התואמות את החיפוש." />
             ) : (
               <div className="flex flex-col gap-2">
-                {data.data.map((bill) => (
-                  <BillCard key={bill.bill_id} bill={bill} onSelect={setSelectedBillId} />
+                {data.data.map((bill, i) => (
+                  <div key={bill.bill_id} className="animate-fade-up" style={{ animationDelay: `${i * 35}ms` }}>
+                    <BillCard bill={bill} onSelect={setSelectedBillId} />
+                  </div>
                 ))}
               </div>
             )}

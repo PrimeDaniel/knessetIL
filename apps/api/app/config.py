@@ -10,10 +10,6 @@ class Settings(BaseSettings):
     app_port: int = 8000
     allowed_origins: str = "http://localhost:3000"
 
-    # Redis
-    redis_url: str = "redis://localhost:6379"
-    redis_password: str = ""
-
     # PostgreSQL
     database_url: str = "postgresql+asyncpg://knesset:knesset@localhost:5432/knessetil"
     database_pool_size: int = 10

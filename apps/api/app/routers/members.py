@@ -2,7 +2,7 @@ import logging
 import math
 
 from fastapi import APIRouter, HTTPException, Query
-from app.deps import DbDep, RedisDep
+from app.deps import DbDep
 from app.services import members_service
 from app.services.oknesset_client import V4_RESULT_CODE_MAP, fetch_v4, fetch_v4_all
 
@@ -20,7 +20,6 @@ def _empty_page(page: int, limit: int) -> dict:
 @router.get("")
 async def get_members(
     db: DbDep,
-    redis: RedisDep,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=500),
     search: str | None = Query(None, description="Hebrew or English name search"),
@@ -30,7 +29,6 @@ async def get_members(
 ):
     return await members_service.list_members(
         db,
-        redis,
         page=page,
         limit=limit,
         search=search,
@@ -40,20 +38,20 @@ async def get_members(
 
 
 @router.get("/{mk_id}")
-async def get_member(mk_id: int, db: DbDep, redis: RedisDep):
-    mk = await members_service.get_member(mk_id, db, redis)
+async def get_member(mk_id: int, db: DbDep):
+    mk = await members_service.get_member(mk_id, db)
     if mk is None:
         raise HTTPException(status_code=404, detail=f"MK {mk_id} not found")
     return mk
 
 
 @router.get("/{mk_id}/stats")
-async def get_member_stats(mk_id: int, db: DbDep, redis: RedisDep):
+async def get_member_stats(mk_id: int, db: DbDep):
     """
     Vote stats from OData v4 for current Knesset 25 MKs.
     Returns zero-valued stats for historical MKs (OData v4 has no data for them).
     """
-    mk = await members_service.get_member(mk_id, db, redis)
+    mk = await members_service.get_member(mk_id, db)
     if mk is None:
         raise HTTPException(status_code=404, detail=f"MK {mk_id} not found")
 
@@ -109,7 +107,6 @@ async def get_member_stats(mk_id: int, db: DbDep, redis: RedisDep):
 async def get_member_votes(
     mk_id: int,
     db: DbDep,
-    redis: RedisDep,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
 ):
@@ -118,7 +115,7 @@ async def get_member_votes(
     Current Knesset 25 MKs: sourced from OData v4.
     Historical MKs: not available via OData v4 (returns empty).
     """
-    mk = await members_service.get_member(mk_id, db, redis)
+    mk = await members_service.get_member(mk_id, db)
     if mk is None:
         return _empty_page(page, limit)
 

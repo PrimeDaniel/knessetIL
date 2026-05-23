@@ -5,7 +5,7 @@ Stats router: aggregated homepage dashboard data.
 import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter
-from app.deps import DbDep, RedisDep, SettingsDep
+from app.deps import DbDep, SettingsDep
 from app.services import cache_service as cache
 from app.services.votes_service import list_votes_v4
 from app.services.bills_service import list_bills_v4
@@ -18,7 +18,7 @@ _KNESSET_SEATS = 120
 
 
 @router.get("/dashboard")
-async def get_dashboard(db: DbDep, redis: RedisDep, settings: SettingsDep):
+async def get_dashboard(db: DbDep, settings: SettingsDep):
     cache_key = "stats:dashboard"
 
     async def factory() -> dict:
@@ -26,8 +26,8 @@ async def get_dashboard(db: DbDep, redis: RedisDep, settings: SettingsDep):
         current_knesset = settings.current_knesset
 
         votes_response, bills_response, active_mks = await asyncio.gather(
-            list_votes_v4(redis, page=1, limit=10),
-            list_bills_v4(redis, page=1, limit=10, knesset_num=current_knesset),
+            list_votes_v4(page=1, limit=10),
+            list_bills_v4(page=1, limit=10, knesset_num=current_knesset),
             count_current_members(db),
         )
 
@@ -72,4 +72,4 @@ async def get_dashboard(db: DbDep, redis: RedisDep, settings: SettingsDep):
             "cached_at": now,
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_DASHBOARD, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_DASHBOARD)

@@ -12,7 +12,6 @@ import logging
 import math
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,7 +71,6 @@ def _member_to_dict(member: Member, faction_rows: list[MemberFaction]) -> dict:
 
 async def list_members(
     db: AsyncSession,
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     search: str | None = None,
@@ -142,10 +140,10 @@ async def list_members(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST)
 
 
-async def get_member(mk_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
+async def get_member(mk_id: int, db: AsyncSession) -> dict | None:
     cache_key = f"members:detail:{mk_id}"
 
     async def factory() -> dict | None:
@@ -160,7 +158,7 @@ async def get_member(mk_id: int, db: AsyncSession, redis: aioredis.Redis) -> dic
         faction_rows = factions_result.scalars().all()
         return _member_to_dict(member, list(faction_rows))
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST)
 
 
 async def count_current_members(db: AsyncSession) -> int:

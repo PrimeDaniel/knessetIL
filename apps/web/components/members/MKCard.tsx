@@ -14,7 +14,7 @@ export function MKCard({ mk, className }: MKCardProps) {
       href={`/members/${mk.mk_individual_id}`}
       className={cn(
         "flex items-center gap-3 rounded-lg border border-border bg-card p-3",
-        "hover:bg-accent/30 hover:border-primary/30 transition-colors",
+        "hover:bg-accent/30 hover:border-primary/30 hover:-translate-y-0.5 hover:shadow-card-md transition-all",
         "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
         className
       )}

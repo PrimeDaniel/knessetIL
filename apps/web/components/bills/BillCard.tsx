@@ -37,7 +37,7 @@ export function BillCard({ bill, onSelect, className }: BillCardProps) {
       onClick={() => onSelect(bill.bill_id)}
       className={cn(
         "group w-full text-start flex items-stretch rounded-xl border border-border border-s-4 bg-card shadow-card",
-        "hover:shadow-card-md hover:border-primary/20 transition-all duration-150",
+        "hover:shadow-card-md hover:border-primary/20 hover:-translate-y-px transition-all duration-150",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         statusAccent(bill.status_id),
         className

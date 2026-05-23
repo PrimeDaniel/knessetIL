@@ -54,7 +54,7 @@ export default function MembersPage() {
       <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
 
         {/* Page header */}
-        <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="mb-6 flex items-start justify-between gap-4 animate-fade-up">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Users className="h-5 w-5 text-primary" />
@@ -124,8 +124,10 @@ export default function MembersPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {members.map((mk) => (
-                      <MKCard key={mk.mk_individual_id} mk={mk} />
+                    {members.map((mk, i) => (
+                      <div key={mk.mk_individual_id} className="animate-fade-up" style={{ animationDelay: `${i * 30}ms` }}>
+                        <MKCard mk={mk} />
+                      </div>
                     ))}
                   </div>
                 </section>

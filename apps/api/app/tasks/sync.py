@@ -4,7 +4,7 @@ Background sync task — runs every 6 hours (configured in main.py).
 Flow per run:
   1. Download each CSV from oknesset.org
   2. UPSERT rows into PostgreSQL (ON CONFLICT DO UPDATE / DO NOTHING)
-  3. Invalidate stale Redis response-cache keys
+  3. Invalidate stale in-memory response-cache keys
 
 vote_rslts_kmmbr_shadow (~1.27M rows) uses ON CONFLICT DO NOTHING because
 historical vote decisions never change once recorded. The first sync loads
@@ -25,7 +25,6 @@ from app.db_models.bill import Bill, BillInitiator
 from app.db_models.faction import Faction
 from app.db_models.member import Member, MemberFaction
 from app.db_models.vote import VoteDecision, VoteHeader, VOTE_RESULT_MAP
-from app.deps import get_redis_client
 from app.services.cache_service import invalidate_many
 from app.services.oknesset_client import fetch_csv
 
@@ -363,10 +362,9 @@ async def run_sync() -> None:
             logger.error("  sync FAILED for vote_decisions: %s", exc, exc_info=True)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
-    logger.info("CSV sync complete in %.1fs — invalidating Redis caches", elapsed)
+    logger.info("CSV sync complete in %.1fs — invalidating in-memory caches", elapsed)
 
     # Invalidate all computed response caches so next request hits the DB
-    redis = get_redis_client()
     patterns = [
         "stats:*",
         "bills:list:*",
@@ -384,5 +382,5 @@ async def run_sync() -> None:
         "parties:detail:*",
         "parties:cohesion:*",
     ]
-    await invalidate_many(patterns, redis)
-    logger.info("Redis caches invalidated")
+    await invalidate_many(patterns)
+    logger.info("In-memory caches invalidated")

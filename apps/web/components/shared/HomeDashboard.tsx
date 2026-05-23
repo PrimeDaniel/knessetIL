@@ -97,9 +97,15 @@ export function HomeDashboard() {
       <section>
         <SectionHeader icon={BarChart3} title={`סטטיסטיקות — כנסת ${data.knesset_num}`} />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-          <StatCard label="הצבעות" value={data.total_votes_this_knesset} />
-          <StatCard label="הצעות חוק" value={data.total_bills} />
-          <StatCard label="חברי כנסת" value={data.total_active_mks} icon={Users} />
+          {[
+            { label: "הצבעות", value: data.total_votes_this_knesset },
+            { label: "הצעות חוק", value: data.total_bills },
+            { label: "חברי כנסת", value: data.total_active_mks, icon: Users },
+          ].map((card, i) => (
+            <div key={card.label} className="animate-fade-up" style={{ animationDelay: `${i * 80}ms` }}>
+              <StatCard label={card.label} value={card.value} icon={card.icon} />
+            </div>
+          ))}
         </div>
       </section>
 
@@ -113,8 +119,10 @@ export function HomeDashboard() {
           </Link>
         </div>
         <div className="flex flex-col gap-3">
-          {data.recent_votes.slice(0, 8).map((vote) => (
-            <VoteCard key={vote.vote_id} vote={vote} onSelect={setSelectedVote} />
+          {data.recent_votes.slice(0, 8).map((vote, i) => (
+            <div key={vote.vote_id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+              <VoteCard vote={vote} onSelect={setSelectedVote} />
+            </div>
           ))}
         </div>
       </section>
@@ -129,12 +137,13 @@ export function HomeDashboard() {
           </Link>
         </div>
         <div className="flex flex-col gap-2">
-          {data.recent_bills.slice(0, 6).map((bill) => (
+          {data.recent_bills.slice(0, 6).map((bill, i) => (
             <button
               key={bill.bill_id}
               type="button"
               onClick={() => setSelectedBillId(bill.bill_id)}
-              className="group w-full text-start flex items-center gap-3 rounded-xl border border-border bg-card shadow-card hover:shadow-card-md hover:border-primary/20 transition-all p-4"
+              className="group w-full text-start flex items-center gap-3 rounded-xl border border-border bg-card shadow-card hover:shadow-card-md hover:border-primary/20 hover:-translate-y-px transition-all p-4 animate-fade-up"
+              style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">

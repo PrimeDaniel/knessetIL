@@ -44,7 +44,7 @@ export default function PartiesPage() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="mb-6">
+        <div className="mb-6 animate-fade-up">
           <h1 className="text-2xl font-bold mb-1">סיעות</h1>
           {data && (
             <p className="text-sm text-muted-foreground">
@@ -110,8 +110,10 @@ export default function PartiesPage() {
               <EmptyState message="לא נמצאו סיעות." className="py-16" />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {data.data.map((faction) => (
-                  <FactionCard key={faction.id} faction={faction} />
+                {data.data.map((faction, i) => (
+                  <div key={faction.id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+                    <FactionCard faction={faction} />
+                  </div>
                 ))}
               </div>
             )}
