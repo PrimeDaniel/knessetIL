@@ -4,7 +4,7 @@ Background sync task — runs every 6 hours (configured in main.py).
 Flow per run:
   1. Download each CSV from oknesset.org
   2. UPSERT rows into PostgreSQL (ON CONFLICT DO UPDATE / DO NOTHING)
-  3. Invalidate stale Redis response-cache keys
+  3. Invalidate stale in-memory response-cache keys
 
 vote_rslts_kmmbr_shadow (~1.27M rows) uses ON CONFLICT DO NOTHING because
 historical vote decisions never change once recorded. The first sync loads
