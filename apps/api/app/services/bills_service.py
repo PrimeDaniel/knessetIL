@@ -18,7 +18,6 @@ import logging
 import math
 from datetime import datetime, timezone
 
-import redis.asyncio as aioredis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -200,7 +199,6 @@ async def _load_initiators(bill_ids: list[int], db: AsyncSession) -> dict[int, l
 
 
 async def list_bills_v4(
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     search: str | None = None,
@@ -249,7 +247,7 @@ async def list_bills_v4(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_BILLS_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, _TTL_V4_BILLS_LIST)
 
 
 # ── PostgreSQL path (Knesset ≤ 24) ───────────────────────────────────────────
@@ -257,7 +255,6 @@ async def list_bills_v4(
 
 async def list_bills_db(
     db: AsyncSession,
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     search: str | None = None,
@@ -315,7 +312,7 @@ async def list_bills_db(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_BILLS_LIST, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_BILLS_LIST)
 
 
 # ── Unified entry points ───────────────────────────────────────────────────────
@@ -323,7 +320,6 @@ async def list_bills_db(
 
 async def list_bills(
     db: AsyncSession,
-    redis: aioredis.Redis,
     page: int = 1,
     limit: int = 20,
     search: str | None = None,
@@ -335,7 +331,6 @@ async def list_bills(
 ) -> dict:
     if knesset_num is None or knesset_num >= current_knesset:
         return await list_bills_v4(
-            redis,
             page=page,
             limit=limit,
             search=search,
@@ -347,7 +342,6 @@ async def list_bills(
         )
     return await list_bills_db(
         db,
-        redis,
         page=page,
         limit=limit,
         search=search,
@@ -358,7 +352,7 @@ async def list_bills(
     )
 
 
-async def get_bill(bill_id: int, db: AsyncSession, redis: aioredis.Redis) -> dict | None:
+async def get_bill(bill_id: int, db: AsyncSession) -> dict | None:
     cache_key = f"bills:detail:{bill_id}"
 
     async def factory() -> dict | None:
@@ -376,7 +370,7 @@ async def get_bill(bill_id: int, db: AsyncSession, redis: aioredis.Redis) -> dic
         init_map = await _load_initiators([bill_id], db)
         return _bill_to_dict(bill, init_map.get(bill_id, []))
 
-    return await cache.get_or_set(cache_key, factory, cache.TTL_BILL_DETAIL, redis)
+    return await cache.get_or_set(cache_key, factory, cache.TTL_BILL_DETAIL)
 
 
 async def count_bills(db: AsyncSession, knesset_num: int | None = None) -> int:
