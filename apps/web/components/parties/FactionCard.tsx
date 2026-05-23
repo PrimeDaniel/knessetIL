@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { cn, formatPercent } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { CohesionGauge } from "@/components/charts/CohesionGauge";
 import type { Faction } from "@knesset/types";
 
 interface FactionCardProps {
@@ -36,20 +37,15 @@ export function FactionCard({ faction, className }: FactionCardProps) {
             )}
           </div>
 
-          {faction.cohesion_score != null && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              לכידות:{" "}
-              <span className="font-medium text-foreground">
-                {formatPercent(faction.cohesion_score)}
-              </span>
-            </div>
+          {isActive && (
+            <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              פעילה
+            </span>
           )}
         </div>
 
-        {isActive && (
-          <span className="shrink-0 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-            פעילה
-          </span>
+        {faction.cohesion_score != null && (
+          <CohesionGauge value={faction.cohesion_score} size={56} caption="לכידות" />
         )}
       </div>
     </Link>

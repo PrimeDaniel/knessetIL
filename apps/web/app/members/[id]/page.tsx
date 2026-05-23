@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowRight, Mail, Phone, ExternalLink } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { MKAvatar } from "@/components/members/MKAvatar";
 import { VotingHistoryTable } from "@/components/members/VotingHistoryTable";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { useMember, useMemberStats } from "@/hooks/useMembers";
@@ -84,22 +84,14 @@ export default function MemberProfilePage({ params }: { params: { id: string } }
 
         {/* Profile header */}
         <div className="mb-6 flex items-start gap-5 animate-fade-up [animation-delay:60ms]">
-          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
-            {mk.mk_individual_photo ? (
-              <Image
-                src={mk.mk_individual_photo}
-                alt={mk.mk_individual_name}
-                fill
-                unoptimized
-                className="object-cover"
-                sizes="80px"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-muted-foreground">
-                {mk.mk_individual_first_name?.[0] ?? "?"}
-              </div>
-            )}
-          </div>
+          <MKAvatar
+            name={mk.mk_individual_name}
+            firstName={mk.mk_individual_first_name}
+            photoUrl={mk.mk_individual_photo}
+            seed={mk.mk_individual_id}
+            size={80}
+            className="border-2"
+          />
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">

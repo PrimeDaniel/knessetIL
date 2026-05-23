@@ -26,6 +26,7 @@ function buildHemicycleSeats(total: number): SeatGeom[] {
     idx = (idx - 1 + perRow.length) % perRow.length;
   }
 
+  const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
   const seats: SeatGeom[] = [];
   for (let r = 0; r < rows; r++) {
     const n = perRow[r], radius = radii[r];
@@ -34,7 +35,7 @@ function buildHemicycleSeats(total: number): SeatGeom[] {
     const a1 = a0 + span;
     for (let k = 0; k < n; k++) {
       const angle = a0 + ((k + 0.5) / n) * (a1 - a0);
-      seats.push({ cx: 50 + radius * Math.cos(angle), cy: 50 + radius * Math.sin(angle) });
+      seats.push({ cx: r4(50 + radius * Math.cos(angle)), cy: r4(50 + radius * Math.sin(angle)) });
     }
   }
   // Sort left→right by angle

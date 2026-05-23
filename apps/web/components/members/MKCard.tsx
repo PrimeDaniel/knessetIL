@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { MKAvatar } from "./MKAvatar";
 import type { MKProfile } from "@knesset/types";
 
 interface MKCardProps {
@@ -19,23 +19,13 @@ export function MKCard({ mk, className }: MKCardProps) {
         className
       )}
     >
-      {/* Photo */}
-      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-        {mk.mk_individual_photo ? (
-          <Image
-            src={mk.mk_individual_photo}
-            alt={mk.mk_individual_name}
-            fill
-            unoptimized
-            className="object-cover"
-            sizes="48px"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-muted-foreground">
-            {mk.mk_individual_first_name?.[0] ?? "?"}
-          </div>
-        )}
-      </div>
+      <MKAvatar
+        name={mk.mk_individual_name}
+        firstName={mk.mk_individual_first_name}
+        photoUrl={mk.mk_individual_photo}
+        seed={mk.mk_individual_id}
+        size={48}
+      />
 
       {/* Info */}
       <div className="flex-1 min-w-0">

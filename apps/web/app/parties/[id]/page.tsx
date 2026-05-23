@@ -7,12 +7,14 @@ import { ArrowRight, Users } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
-import { useParty } from "@/hooks/useParties";
+import { CohesionGauge } from "@/components/charts/CohesionGauge";
+import { useParty, usePartyCohesion } from "@/hooks/useParties";
 
 export default function PartyProfilePage({ params }: { params: { id: string } }) {
   const factionId = parseInt(params.id, 10);
   if (isNaN(factionId)) notFound();
   const { data: faction, isLoading, isError } = useParty(factionId);
+  const { data: cohesion } = usePartyCohesion(factionId);
 
   useEffect(() => {
     if (faction?.name) {
@@ -70,8 +72,8 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
         </nav>
 
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold">{faction.name}</h1>
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
@@ -80,13 +82,25 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
               </span>
               {maxKnesset && <span>כנסת {maxKnesset}</span>}
             </div>
+            {isActive && (
+              <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                פעילה
+              </span>
+            )}
           </div>
-          {isActive && (
-            <span className="shrink-0 inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-              פעילה
-            </span>
-          )}
+
+          <CohesionGauge
+            value={cohesion?.cohesion_score ?? null}
+            size={110}
+            caption="לכידות"
+          />
         </div>
+
+        {cohesion?.total_votes_analyzed != null && cohesion.total_votes_analyzed > 0 && (
+          <p className="mb-6 -mt-2 text-xs text-muted-foreground">
+            מבוסס על {cohesion.total_votes_analyzed.toLocaleString("he-IL")} הצבעות שנותחו
+          </p>
+        )}
 
         {/* Knesset sessions */}
         {faction.knessets.length > 0 && (
