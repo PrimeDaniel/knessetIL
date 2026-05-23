@@ -1,12 +1,12 @@
 """
-Redis cache-aside helpers.
+In-memory cache-aside helpers.
 
-Pattern: get_or_set(key, async factory_fn, ttl, redis)
-  1. Try GET key from Redis
+Pattern: get_or_set(key, async factory_fn, ttl)
+  1. Check in-memory store for a live (non-expired) entry
   2. On cache miss → call factory_fn() to compute result
-  3. SET key with TTL, return result
+  3. Store result with expiry time, return result
 
-TTL constants (seconds) — see architecture plan for rationale:
+TTL constants (seconds):
   DASHBOARD    1 hour   — aggregated, tolerable staleness
   BILLS_LIST   6 hours  — bills change slowly
   BILL_DETAIL  12 hours — individual status rarely changes mid-day
@@ -19,12 +19,11 @@ TTL constants (seconds) — see architecture plan for rationale:
   RAW_CSV      6 hours  — source sync interval
 """
 
-import json
+import fnmatch
 import logging
+import time
 from collections.abc import Callable, Awaitable
 from typing import Any, TypeVar
-
-import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
@@ -42,49 +41,42 @@ TTL_PARTY_LIST = 21_600  # 6 hours
 TTL_PARTY_COH = 43_200  # 12 hours
 TTL_RAW_CSV = 21_600  # 6 hours
 
+# Global in-memory store: key -> (expires_at, value)
+_store: dict[str, tuple[float, Any]] = {}
+
 
 async def get_or_set(
     key: str,
     factory: Callable[[], Awaitable[T]],
     ttl: int,
-    redis: aioredis.Redis,
 ) -> T:
     """
-    Cache-aside: read from Redis, fall back to factory(), write result.
+    Cache-aside: read from memory, fall back to factory(), write result.
     factory() must return a JSON-serialisable object.
-    Degrades gracefully if Redis is unavailable — requests still succeed, just uncached.
     """
-    try:
-        cached = await redis.get(key)
-        if cached is not None:
-            logger.debug("Cache HIT: %s", key)
-            return json.loads(cached)
-        logger.debug("Cache MISS: %s", key)
-    except Exception as exc:
-        logger.warning("Redis unavailable, bypassing cache for %s: %s", key, exc)
-        return await factory()
-
+    now = time.monotonic()
+    entry = _store.get(key)
+    if entry is not None and entry[0] > now:
+        logger.debug("Cache HIT: %s", key)
+        return entry[1]
+    logger.debug("Cache MISS: %s", key)
     result = await factory()
-    try:
-        await redis.setex(key, ttl, json.dumps(result, default=str, ensure_ascii=False))
-    except Exception as exc:
-        logger.warning("Failed to cache key %s: %s", key, exc)
+    _store[key] = (now + ttl, result)
     return result
 
 
-async def invalidate(pattern: str, redis: aioredis.Redis) -> int:
-    """Delete all keys matching a glob pattern. Uses SCAN to avoid blocking Redis."""
-    keys = [key async for key in redis.scan_iter(match=pattern)]
-    if keys:
-        return await redis.delete(*keys)
-    return 0
+def invalidate(pattern: str) -> int:
+    """Delete all keys matching a glob pattern."""
+    keys_to_delete = [k for k in list(_store.keys()) if fnmatch.fnmatch(k, pattern)]
+    for k in keys_to_delete:
+        del _store[k]
+    return len(keys_to_delete)
 
 
-async def invalidate_many(patterns: list[str], redis: aioredis.Redis) -> None:
+async def invalidate_many(patterns: list[str]) -> None:
     """Delete all keys matching any of the given patterns."""
-    import asyncio
-
-    await asyncio.gather(*[invalidate(p, redis) for p in patterns])
+    for p in patterns:
+        invalidate(p)
 
 
 def make_list_key(prefix: str, **params: Any) -> str:
