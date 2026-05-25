@@ -34,8 +34,10 @@ class Member(Base):
 
     photo_url: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
     gender_desc: Mapped[str | None] = mapped_column(String, nullable=True)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    is_coalition: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
