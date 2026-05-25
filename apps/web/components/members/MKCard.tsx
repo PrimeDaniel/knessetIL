@@ -37,10 +37,15 @@ export function MKCard({ mk, className }: MKCardProps) {
             {mk.current_faction.name}
           </p>
         )}
-        <div className="mt-1 flex items-center gap-2">
-          {mk.is_current && (
-            <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-              נוכחי
+        <div className="mt-1 flex items-center gap-1.5">
+          {mk.is_coalition === true && (
+            <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              קואליציה
+            </span>
+          )}
+          {mk.is_coalition === false && (
+            <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+              אופוזיציה
             </span>
           )}
           {mk.knessets.length > 0 && (
