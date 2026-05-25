@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getPartyColor } from "@/lib/knesset-parties";
 import { MKAvatar } from "./MKAvatar";
 import type { MKProfile } from "@knesset/types";
 
@@ -33,7 +34,11 @@ export function MKCard({ mk, className }: MKCardProps) {
           {mk.mk_individual_name}
         </p>
         {mk.current_faction && (
-          <p className="mt-0.5 text-xs text-muted-foreground truncate">
+          <p className="mt-0.5 text-xs text-muted-foreground truncate flex items-center gap-1.5">
+            <span
+              className="inline-block w-2 h-2 rounded-full shrink-0"
+              style={{ background: getPartyColor(mk.current_faction.name) }}
+            />
             {mk.current_faction.name}
           </p>
         )}
