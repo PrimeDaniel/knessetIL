@@ -104,7 +104,7 @@ function CoalitionStatCard({
 // ── Main component ────────────────────────────────────────────────────────────
 export function KnessetHemicycle() {
   const { data: partiesData } = useParties({ is_active: true });
-  const { data: membersData } = useMembers({ is_current: true, limit: 100 });
+  const { data: membersData } = useMembers({ is_current: true, limit: 200 });
 
   const parties = useMemo(
     () => enrichParties(partiesData?.data ?? []),
@@ -220,7 +220,7 @@ export function KnessetHemicycle() {
                     key={i}
                     cx={s.cx}
                     cy={s.cy}
-                    r={1.15}
+                    r={1.25}
                     fill={color}
                     style={{
                       cursor: "pointer",
