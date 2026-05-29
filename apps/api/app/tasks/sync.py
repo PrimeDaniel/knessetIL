@@ -20,6 +20,7 @@ import pandas as pd
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.db_models.bill import Bill, BillInitiator
 from app.db_models.faction import Faction
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 _UPSERT_BATCH = 2_000  # rows per INSERT statement
 _NOW = datetime.now(timezone.utc)
+_KNESSET_FILTER = get_settings().oknesset_knesset_filter  # None = sync all
 
 
 def _safe(val: Any) -> Any:
@@ -132,6 +134,9 @@ async def _sync_member_factions(session: AsyncSession) -> int:
         start = _to_date(r.get("start_date"))
         if mk_id is None or fac_id is None:
             continue
+        knesset_num = _to_int(r.get("knesset"))
+        if _KNESSET_FILTER is not None and knesset_num != _KNESSET_FILTER:
+            continue
         rows.append(
             {
                 "mk_individual_id": mk_id,
@@ -139,7 +144,7 @@ async def _sync_member_factions(session: AsyncSession) -> int:
                 "faction_name": _safe(r.get("faction_name")),
                 "start_date": start,
                 "finish_date": _to_date(r.get("finish_date")),
-                "knesset_num": _to_int(r.get("knesset")),
+                "knesset_num": knesset_num,
                 "synced_at": _NOW,
             }
         )
@@ -192,7 +197,8 @@ async def _sync_factions(session: AsyncSession) -> int:
     return await _upsert_batched(session, stmt_factory, rows)
 
 
-async def _sync_bills(session: AsyncSession) -> int:
+async def _sync_bills(session: AsyncSession, kept_bill_ids: set[int]) -> int:
+    """Sync bills; mutate ``kept_bill_ids`` with the bill IDs we actually upsert."""
     df = await fetch_csv("kns_bill", timeout=120.0)
     rows = []
     for _, r in df.iterrows():
@@ -200,6 +206,9 @@ async def _sync_bills(session: AsyncSession) -> int:
         knesset_num = _to_int(r.get("KnessetNum"))
         if bill_id is None or knesset_num is None:
             continue
+        if _KNESSET_FILTER is not None and knesset_num != _KNESSET_FILTER:
+            continue
+        kept_bill_ids.add(bill_id)
         rows.append(
             {
                 "bill_id": bill_id,
@@ -226,13 +235,16 @@ async def _sync_bills(session: AsyncSession) -> int:
     return await _upsert_batched(session, stmt_factory, rows)
 
 
-async def _sync_bill_initiators(session: AsyncSession) -> int:
+async def _sync_bill_initiators(session: AsyncSession, kept_bill_ids: set[int]) -> int:
     df = await fetch_csv("kns_billinitiator")
     rows = []
+    apply_bill_filter = _KNESSET_FILTER is not None
     for _, r in df.iterrows():
         bill_id = _to_int(r.get("BillID"))
         person_id = _to_int(r.get("PersonID"))
         if bill_id is None or person_id is None:
+            continue
+        if apply_bill_filter and bill_id not in kept_bill_ids:
             continue
         if not _to_bool(r.get("IsInitiator", True)):
             continue
@@ -264,10 +276,13 @@ async def _sync_vote_headers(session: AsyncSession) -> int:
         vote_id = _to_int(r.get("vote_id"))
         if vote_id is None:
             continue
+        knesset_num = _to_int(r.get("knesset_num"))
+        if _KNESSET_FILTER is not None and knesset_num != _KNESSET_FILTER:
+            continue
         rows.append(
             {
                 "vote_id": vote_id,
-                "knesset_num": _to_int(r.get("knesset_num")),
+                "knesset_num": knesset_num,
                 "session_id": _to_int(r.get("session_id")),
                 "sess_item_dscr": _safe(r.get("sess_item_dscr")),
                 "vote_item_id": _to_int(r.get("vote_item_id")),
@@ -303,6 +318,9 @@ async def _sync_vote_decisions(session: AsyncSession) -> int:
         member_id = _to_int(r.get("kmmbr_id"))
         if vote_id is None or member_id is None:
             continue
+        knesset_num = _to_int(r.get("knesset_num"))
+        if _KNESSET_FILTER is not None and knesset_num != _KNESSET_FILTER:
+            continue
         raw_result = _to_int(r.get("vote_result")) or 0
         rows.append(
             {
@@ -310,7 +328,7 @@ async def _sync_vote_decisions(session: AsyncSession) -> int:
                 "member_id": member_id,
                 "member_name": _safe(r.get("kmmbr_name")),
                 "result": VOTE_RESULT_MAP.get(raw_result, "absent"),
-                "knesset_num": _to_int(r.get("knesset_num")),
+                "knesset_num": knesset_num,
                 "faction_id": _to_int(r.get("faction_id")),
                 "faction_name": _safe(r.get("faction_name")),
                 "synced_at": _NOW,
@@ -330,16 +348,21 @@ async def _sync_vote_decisions(session: AsyncSession) -> int:
 
 
 async def run_sync() -> None:
-    logger.info("Starting oknesset CSV sync...")
+    logger.info(
+        "Starting oknesset CSV sync (knesset_filter=%s)...",
+        _KNESSET_FILTER if _KNESSET_FILTER is not None else "ALL",
+    )
     start = datetime.now(timezone.utc)
+    kept_bill_ids: set[int] = set()
 
     async with AsyncSessionLocal() as session:
+        # Bills must run before bill_initiators so the kept_bill_ids set is populated.
         tasks = [
             ("members", _sync_members(session)),
             ("member_factions", _sync_member_factions(session)),
             ("factions", _sync_factions(session)),
-            ("bills", _sync_bills(session)),
-            ("bill_initiators", _sync_bill_initiators(session)),
+            ("bills", _sync_bills(session, kept_bill_ids)),
+            ("bill_initiators", _sync_bill_initiators(session, kept_bill_ids)),
             ("vote_headers", _sync_vote_headers(session)),
         ]
 

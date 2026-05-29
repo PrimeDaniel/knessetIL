@@ -1,0 +1,26 @@
+# Netlify build configuration for the apps/web (Next.js 14) frontend.
+#
+# The FastAPI backend is NOT deployed to Netlify — it runs on a separate host
+# (Render / Fly / Railway / VPS). The frontend reaches it via NEXT_PUBLIC_API_URL,
+# which is set in the Netlify site dashboard.
+#
+# See deployment/netlify-supabase/README.md for the full deploy walkthrough.
+
+[build]
+  # "base" makes Netlify treat apps/web as the project root for the build:
+  # pnpm install runs there, Next.js detects its config there, and the
+  # official Next runtime publishes its output from there.
+  base    = "apps/web"
+  command = "pnpm install --frozen-lockfile && pnpm build"
+  publish = ".next"
+
+[build.environment]
+  # Use the same Node + pnpm versions as the monorepo declares.
+  NODE_VERSION = "20"
+  PNPM_VERSION = "9"
+  # Let the Next plugin find the workspace root for `pnpm install`.
+  NPM_FLAGS    = "--prefix=/dev/null"
+
+# Required for Next.js App Router on Netlify (handles SSR/ISR + image optimisation).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

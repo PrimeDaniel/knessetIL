@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     oknesset_base_url: str = "https://production.oknesset.org/pipelines/data"
     oknesset_sync_interval_hours: int = 6
 
+    # When set, only rows for this Knesset are synced to the database.
+    # Used in production to keep the Supabase database within free-tier limits.
+    # None = sync all Knessets (local dev default).
+    oknesset_knesset_filter: int | None = None
+
     # Rate limiting
     rate_limit_default: str = "100/minute"
     rate_limit_search: str = "30/minute"
