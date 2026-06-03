@@ -8,13 +8,14 @@ import { BillModal } from "@/components/bills/BillModal";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { StatCard } from "@/components/shared/StatCard";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
+import { UpdatingNotice } from "@/components/shared/UpdatingNotice";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { formatDateHe } from "@/lib/utils";
 import type { RecentVote } from "@knesset/types";
 import {
-  CheckCircle2, XCircle, FileText, Scale, Users,
+  CheckCircle2, XCircle, FileText, Scale,
   ChevronLeft, ChevronRight, BarChart3, TrendingUp, ArrowLeft,
-  Vote, X, ExternalLink,
+  Vote, X, ExternalLink, Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,12 +96,15 @@ export function HomeDashboard() {
     <div className="space-y-10">
       {/* Stats */}
       <section>
-        <SectionHeader icon={BarChart3} title={`סטטיסטיקות — כנסת ${data.knesset_num}`} />
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+        <div className="flex items-center justify-between">
+          <SectionHeader icon={BarChart3} title={`סטטיסטיקות — כנסת ${data.knesset_num}`} />
+          {data.updating && <UpdatingNotice />}
+        </div>
+        <div className="grid grid-cols-3 gap-3 mt-4">
           {[
-            { label: "הצבעות", value: data.total_votes_this_knesset },
-            { label: "הצעות חוק", value: data.total_bills },
-            { label: "חברי כנסת", value: data.total_active_mks, icon: Users },
+            { label: "הצבעות", value: data.total_votes_this_knesset, icon: Vote },
+            { label: "הצעות חוק", value: data.total_bills, icon: FileText },
+            { label: "הפכו לחוק", value: data.bills_passed_into_law, icon: Gavel },
           ].map((card, i) => (
             <div key={card.label} className="animate-fade-up" style={{ animationDelay: `${i * 80}ms` }}>
               <StatCard label={card.label} value={card.value} icon={card.icon} />

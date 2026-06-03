@@ -167,3 +167,46 @@ async def count_current_members(db: AsyncSession) -> int:
         select(func.count()).where(Member.is_current == True)  # noqa: E712
     )
     return result.scalar_one() or 0
+
+
+async def get_member_name_map() -> dict[str, dict]:
+    """
+    Build a ``"LastName_FirstName" -> {mk_individual_id, photo_url}`` lookup for
+    every MK in the local table.
+
+    The OData vote-result ``MkId`` is a *different* identifier from both
+    ``person_id`` and ``mk_individual_id``, so it can't be used to link to a
+    member page.  Instead we match on the MK's name — the same key the faction
+    map (``fetch_v4_mk_faction_map``) already uses successfully — which lets vote
+    views resolve each voter's profile link and photo.
+
+    Current members win on name collisions (sorted so ``is_current`` overwrites
+    last).  Keys are strings so the payload is JSON/JSONB-safe.
+    """
+    cache_key = "members:name_map"
+
+    async def factory() -> dict[str, dict]:
+        from app.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            rows = (
+                await db.execute(
+                    select(
+                        Member.mk_individual_id,
+                        Member.photo_url,
+                        Member.first_name,
+                        Member.last_name,
+                        Member.is_current,
+                    )
+                )
+            ).all()
+        out: dict[str, dict] = {}
+        for mk_id, photo, first, last, is_current in sorted(rows, key=lambda r: bool(r[4])):
+            last_s = (last or "").strip()
+            first_s = (first or "").strip()
+            if not last_s and not first_s:
+                continue
+            out[f"{last_s}_{first_s}"] = {"mk_individual_id": mk_id, "photo_url": photo}
+        return out
+
+    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST)

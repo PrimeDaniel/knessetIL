@@ -156,7 +156,10 @@ test.describe('Votes page (/votes)', () => {
     const voteId = data.data[0]?.id ?? 45953;
 
     await page.goto(`/votes/${voteId}`);
-    await page.waitForLoadState('networkidle', { timeout: 20_000 });
+    // Vote detail makes long-running OData requests (per-MK results) — wait for
+    // the DOM, not networkidle (same pattern as the bill detail test above).
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(2500);
     expect(page.url()).toMatch(/\/votes\/\d+/);
     const body = await page.textContent('body');
     expect(body?.length).toBeGreaterThan(200);

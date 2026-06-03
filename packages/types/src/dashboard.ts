@@ -7,9 +7,12 @@ export interface DashboardStats {
   total_votes_this_knesset: number;
   total_bills: number;
   total_active_mks: number;
+  bills_passed_into_law: number;
   recent_votes: RecentVote[];
   recent_bills: RecentBill[];
   cached_at: string;
+  /** True when the cached data is stale and being refreshed in the background. */
+  updating?: boolean;
 }
 
 export interface RecentVote {

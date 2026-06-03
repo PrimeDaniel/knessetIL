@@ -28,6 +28,7 @@ export interface MKVoteRecord {
   mk_individual_id: number;
   mk_name: string; // Hebrew
   mk_name_eng: string;
+  mk_individual_photo?: string | null;
   faction_id: number | null;
   faction_name: string | null;
   decision: VoteDecision;

@@ -111,10 +111,10 @@ export function KnessetHemicycle() {
     [partiesData],
   );
 
-  const totalSeats = useMemo(
-    () => parties.reduce((s, p) => s + p.seats, 0) || 120,
-    [parties],
-  );
+  // The Knesset has exactly 120 seats by law (Basic Law: The Knesset, Article 1).
+  // Faction member counts can momentarily sum to 121 during an MK handover, so
+  // the hemicycle is always drawn with the fixed legal seat count.
+  const totalSeats = 120;
 
   const seats = useMemo(() => buildHemicycleSeats(totalSeats), [totalSeats]);
   const seatAssignment = useMemo(() => assignSeats(seats, parties), [seats, parties]);
