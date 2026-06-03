@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # None = sync all Knessets (local dev default).
     oknesset_knesset_filter: int | None = None
 
+    # Run the 6-hour CSV sync inside the API process (APScheduler).
+    # Set to False in production when an external scheduler (e.g. a GitHub
+    # Actions cron) owns the sync — avoids double-running and works even when
+    # the API host has scaled to zero. True keeps local dev self-contained.
+    enable_sync_scheduler: bool = True
+
     # Rate limiting
     rate_limit_default: str = "100/minute"
     rate_limit_search: str = "30/minute"

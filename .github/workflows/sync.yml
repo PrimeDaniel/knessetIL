@@ -1,0 +1,47 @@
+name: Knesset data sync
+
+# Runs the Open Knesset CSV → Supabase sync on a schedule, independent of the
+# API host. This replaces the in-process APScheduler job in production: set
+# ENABLE_SYNC_SCHEDULER=false on the API so the two don't double-run.
+#
+# Required repository secret (Settings → Secrets and variables → Actions):
+#   SUPABASE_DATABASE_URL  — asyncpg connection string, e.g.
+#     postgresql+asyncpg://postgres.<ref>:<PASSWORD>@aws-0-<region>.pooler.supabase.com:6543/postgres?ssl=require
+
+on:
+  schedule:
+    # Every 6 hours, on the hour (UTC). Adjust if you want a gentler cadence.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}        # allow manual runs from the Actions tab
+
+# Avoid overlapping syncs if one run is slow.
+concurrency:
+  group: knesset-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      OKNESSET_KNESSET_FILTER: "25"   # keep the Supabase dataset within free-tier limits
+      APP_ENV: production
+      LOG_LEVEL: INFO
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sync
+        run: python -c "import asyncio; from app.tasks.sync import run_sync; asyncio.run(run_sync())"
