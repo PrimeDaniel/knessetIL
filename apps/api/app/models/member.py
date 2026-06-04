@@ -35,6 +35,7 @@ class MKProfile(BaseModel):
     mk_individual_phone: str | None = None
     gender_desc: str
     is_current: bool
+    is_coalition: bool | None = None
     knessets: list[int] = Field(default_factory=list)
     current_faction: FactionRef | None = None
     faction_history: list[FactionMembership] = Field(default_factory=list)

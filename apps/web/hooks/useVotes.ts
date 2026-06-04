@@ -13,6 +13,8 @@ export function useVotes(params: VoteListParams = {}) {
     queryKey: voteKeys.list(params),
     queryFn: () => votesApi.list(params),
     staleTime: 5 * 60 * 1000,
+    // Poll briefly while the server refreshes stale OData in the background.
+    refetchInterval: (query) => (query.state.data?.updating ? 4000 : false),
   });
 }
 

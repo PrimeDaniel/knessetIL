@@ -61,13 +61,15 @@ async def list_parties(
         result = await db.execute(stmt)
         factions = result.scalars().all()
 
-        # Count current members per faction (finish_date IS NULL in member_factions)
+        # Count current members per faction (finish_date IS NULL AND member is_current=True)
         faction_ids = [f.id for f in factions]
         counts_result = await db.execute(
             select(MemberFaction.faction_id, func.count().label("cnt"))
+            .join(Member, Member.mk_individual_id == MemberFaction.mk_individual_id)
             .where(
                 MemberFaction.faction_id.in_(faction_ids),
                 MemberFaction.finish_date.is_(None),
+                Member.is_current == True,
             )
             .group_by(MemberFaction.faction_id)
         )

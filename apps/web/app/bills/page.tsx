@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useQueryState } from "nuqs";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -12,9 +12,32 @@ import { SkeletonList } from "@/components/shared/SkeletonCard";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useBills } from "@/hooks/useBills";
+import { UpdatingNotice } from "@/components/shared/UpdatingNotice";
 import { FileText } from "lucide-react";
 
 export default function BillsPage() {
+  // useQueryState (nuqs) relies on useSearchParams, which requires a Suspense
+  // boundary for Next.js static prerendering. Keep this wrapper hook-free.
+  return (
+    <Suspense fallback={<BillsPageFallback />}>
+      <BillsPageContent />
+    </Suspense>
+  );
+}
+
+function BillsPageFallback() {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <Header />
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+        <SkeletonList rows={10} />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function BillsPageContent() {
   const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
   const [search] = useQueryState("search", { defaultValue: "" });
   const [statusId] = useQueryState("status_id", { defaultValue: "" });
@@ -48,9 +71,12 @@ export default function BillsPage() {
               <h1 className="text-2xl font-bold">הצעות חוק</h1>
             </div>
             {data && (
-              <p className="text-sm text-muted-foreground">
-                {data.pagination.total.toLocaleString("he-IL")} הצעות חוק
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {data.pagination.total.toLocaleString("he-IL")} הצעות חוק
+                </p>
+                {data.updating && <UpdatingNotice />}
+              </div>
             )}
           </div>
         </div>

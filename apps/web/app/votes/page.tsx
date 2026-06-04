@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { Header } from "@/components/layout/Header";
@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { useVotes, useVoteDetail } from "@/hooks/useVotes";
+import { UpdatingNotice } from "@/components/shared/UpdatingNotice";
 import { formatDateHe, cn } from "@/lib/utils";
 import type { VoteResult } from "@knesset/types";
 import {
@@ -20,6 +21,28 @@ import {
 } from "lucide-react";
 
 export default function VotesPage() {
+  // useQueryState (nuqs) relies on useSearchParams, which requires a Suspense
+  // boundary for Next.js static prerendering. Keep this wrapper hook-free.
+  return (
+    <Suspense fallback={<VotesPageFallback />}>
+      <VotesPageContent />
+    </Suspense>
+  );
+}
+
+function VotesPageFallback() {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <Header />
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+        <SkeletonList rows={12} />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function VotesPageContent() {
   const [isAccepted, setIsAccepted] = useQueryState("is_accepted", { defaultValue: "" });
   const [page, setPage] = useQueryState("page", { defaultValue: "1", shallow: false });
 
@@ -47,9 +70,12 @@ export default function VotesPage() {
               <h1 className="text-2xl font-bold">הצבעות הכנסת</h1>
             </div>
             {data && (
-              <p className="text-sm text-muted-foreground">
-                {data.pagination.total.toLocaleString("he-IL")} הצבעות
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {data.pagination.total.toLocaleString("he-IL")} הצבעות
+                </p>
+                {data.updating && <UpdatingNotice />}
+              </div>
             )}
           </div>
 

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Scale, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const NAV_ITEMS = [
@@ -23,11 +24,22 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-card">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <div className="container mx-auto flex h-20 items-center justify-between px-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 text-primary font-bold text-lg shrink-0">
-          <Scale className="h-5 w-5" />
-          <span>שקיפות הכנסת</span>
+        <Link
+          href="/"
+          className="flex items-center gap-3 text-primary font-bold text-xl shrink-0"
+          aria-label="שקיפות הכנסת — דף הבית"
+        >
+          <Image
+            src="/logo.png"
+            alt="knessetIL"
+            width={64}
+            height={64}
+            priority
+            className="rounded-lg ring-1 ring-border shadow-sm"
+          />
+          <span className="hidden sm:inline">שקיפות הכנסת</span>
         </Link>
 
         {/* Desktop nav */}

@@ -42,5 +42,8 @@ export function useDashboard() {
     queryKey: dashboardKeys.all,
     queryFn: () => statsApi.dashboard(),
     staleTime: 60 * 60 * 1000, // 1h — matches server TTL
+    // While the server is refreshing stale data in the background, poll briefly
+    // so the homepage swaps in the fresh snapshot once it's ready.
+    refetchInterval: (query) => (query.state.data?.updating ? 4000 : false),
   });
 }

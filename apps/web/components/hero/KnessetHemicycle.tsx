@@ -26,6 +26,7 @@ function buildHemicycleSeats(total: number): SeatGeom[] {
     idx = (idx - 1 + perRow.length) % perRow.length;
   }
 
+  const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
   const seats: SeatGeom[] = [];
   for (let r = 0; r < rows; r++) {
     const n = perRow[r], radius = radii[r];
@@ -34,7 +35,7 @@ function buildHemicycleSeats(total: number): SeatGeom[] {
     const a1 = a0 + span;
     for (let k = 0; k < n; k++) {
       const angle = a0 + ((k + 0.5) / n) * (a1 - a0);
-      seats.push({ cx: 50 + radius * Math.cos(angle), cy: 50 + radius * Math.sin(angle) });
+      seats.push({ cx: r4(50 + radius * Math.cos(angle)), cy: r4(50 + radius * Math.sin(angle)) });
     }
   }
   // Sort left→right by angle
@@ -103,17 +104,17 @@ function CoalitionStatCard({
 // ── Main component ────────────────────────────────────────────────────────────
 export function KnessetHemicycle() {
   const { data: partiesData } = useParties({ is_active: true });
-  const { data: membersData } = useMembers({ is_current: true, limit: 100 });
+  const { data: membersData } = useMembers({ is_current: true, limit: 200 });
 
   const parties = useMemo(
     () => enrichParties(partiesData?.data ?? []),
     [partiesData],
   );
 
-  const totalSeats = useMemo(
-    () => parties.reduce((s, p) => s + p.seats, 0) || 120,
-    [parties],
-  );
+  // The Knesset has exactly 120 seats by law (Basic Law: The Knesset, Article 1).
+  // Faction member counts can momentarily sum to 121 during an MK handover, so
+  // the hemicycle is always drawn with the fixed legal seat count.
+  const totalSeats = 120;
 
   const seats = useMemo(() => buildHemicycleSeats(totalSeats), [totalSeats]);
   const seatAssignment = useMemo(() => assignSeats(seats, parties), [seats, parties]);
@@ -219,7 +220,7 @@ export function KnessetHemicycle() {
                     key={i}
                     cx={s.cx}
                     cy={s.cy}
-                    r={1.15}
+                    r={1.25}
                     fill={color}
                     style={{
                       cursor: "pointer",

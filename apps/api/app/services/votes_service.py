@@ -47,6 +47,11 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _has_rows(result: dict) -> bool:
+    """A list response worth caching has at least one row / a non-zero total."""
+    return bool(result.get("data")) or result.get("pagination", {}).get("total", 0) > 0
+
+
 # ── OData v4 helpers ──────────────────────────────────────────────────────────
 
 
@@ -184,16 +189,25 @@ async def list_votes_v4(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_LIST)
+    # Lazy cache: serve last-known data instantly, refresh live OData in the
+    # background. `updating` tells the client to show a "מעדכן…" notice.
+    # Never cache an empty result — that usually means a transient OData failure.
+    result, updating = await cache.get_or_set_swr(
+        cache_key, factory, _TTL_V4_LIST, cache_ok=_has_rows
+    )
+    return {**result, "updating": updating}
 
 
 async def get_vote_detail_v4(vote_id: int) -> dict | None:
     cache_key = f"votes:v4:detail:{vote_id}"
 
     async def factory() -> dict | None:
-        vote_row, faction_map = await asyncio.gather(
+        from app.services.members_service import get_member_name_map
+
+        vote_row, faction_map, name_map = await asyncio.gather(
             fetch_v4_vote_with_results(vote_id),
             _get_mk_faction_map(),
+            get_member_name_map(),
         )
         if not vote_row:
             return None
@@ -224,14 +238,20 @@ async def get_vote_detail_v4(vote_id: int) -> dict | None:
         for r in results:
             last = (r.get("LastName") or "").strip()
             first = (r.get("FirstName") or "").strip()
-            faction_info = faction_map.get(f"{last}_{first}", {})
+            name_key = f"{last}_{first}"
+            faction_info = faction_map.get(name_key, {})
             decision = V4_RESULT_CODE_MAP.get(int(r.get("ResultCode") or 0), "absent")
+            # Resolve the local mk_individual_id (used by member pages) + photo by
+            # name — the vote-result MkId is a different id space and can't link.
+            # mk_individual_id is 0 when unmatched; the UI then renders a non-link.
+            minfo = name_map.get(name_key, {})
             mk_votes.append(
                 {
                     "vote_id": vote_id,
-                    "mk_individual_id": int(r.get("MkId") or 0),
+                    "mk_individual_id": minfo.get("mk_individual_id") or 0,
                     "mk_name": f"{last} {first}".strip(),
                     "mk_name_eng": "",
+                    "mk_individual_photo": minfo.get("photo_url"),
                     "faction_id": faction_info.get("faction_id"),
                     "faction_name": faction_info.get("faction_name"),
                     "decision": decision,
@@ -344,6 +364,7 @@ async def get_vote_detail_db(vote_id: int, db: AsyncSession) -> dict | None:
                 "mk_individual_id": d.member_id,
                 "mk_name": d.member_name or "",
                 "mk_name_eng": "",
+                "mk_individual_photo": None,
                 "faction_id": d.faction_id,
                 "faction_name": d.faction_name or "",
                 "decision": d.result,

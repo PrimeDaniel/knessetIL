@@ -103,6 +103,11 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _has_rows(result: dict) -> bool:
+    """A list response worth caching has at least one row / a non-zero total."""
+    return bool(result.get("data")) or result.get("pagination", {}).get("total", 0) > 0
+
+
 def _bill_to_dict(bill: Bill, initiators: list[dict]) -> dict:
     status_id = bill.status_id or 0
     return {
@@ -247,7 +252,13 @@ async def list_bills_v4(
             "cached_at": _now_iso(),
         }
 
-    return await cache.get_or_set(cache_key, factory, _TTL_V4_BILLS_LIST)
+    # Lazy cache: serve last-known data instantly, refresh live OData in the
+    # background. `updating` tells the client to show a "מעדכן…" notice.
+    # Never cache an empty result — that usually means a transient OData failure.
+    result, updating = await cache.get_or_set_swr(
+        cache_key, factory, _TTL_V4_BILLS_LIST, cache_ok=_has_rows
+    )
+    return {**result, "updating": updating}
 
 
 # ── PostgreSQL path (Knesset ≤ 24) ───────────────────────────────────────────

@@ -38,6 +38,7 @@ export interface MKProfile {
   mk_individual_phone: string | null;
   gender_desc: Gender;
   is_current: boolean;
+  is_coalition: boolean | null;
   knessets: number[];                   // Knesset sessions served in
   current_faction: FactionRef | null;
   faction_history: FactionMembership[];

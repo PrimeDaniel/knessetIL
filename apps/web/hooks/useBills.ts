@@ -13,6 +13,8 @@ export function useBills(params: BillListParams = {}) {
   return useQuery({
     queryKey: billKeys.list(params),
     queryFn: () => billsApi.list(params),
+    // Poll briefly while the server refreshes stale OData in the background.
+    refetchInterval: (query) => (query.state.data?.updating ? 4000 : false),
   });
 }
 

@@ -3,6 +3,7 @@ import { Heebo, Noto_Serif_Hebrew, IBM_Plex_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { ReactQueryProvider } from "@/components/shared/ReactQueryProvider";
+import { RouteProgress } from "@/components/shared/RouteProgress";
 import "./globals.css";
 
 // ── Hebrew primary font ───────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export default async function RootLayout({
       <body className="font-sans min-h-screen bg-background antialiased">
         <NextIntlClientProvider messages={messages}>
           <ReactQueryProvider>
+            <RouteProgress />
             {children}
           </ReactQueryProvider>
         </NextIntlClientProvider>

@@ -13,6 +13,8 @@ export interface PaginatedResponse<T> {
   data: T[];
   pagination: Pagination;
   cached_at: string; // ISO timestamp
+  /** True when the cached data is stale and being refreshed in the background. */
+  updating?: boolean;
 }
 
 export interface ApiError {

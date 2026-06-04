@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MKAvatar } from "@/components/members/MKAvatar";
 import type { PartyVoteBreakdown, MKVoteRecord } from "@knesset/types";
 
 interface FactionVotePanelProps {
@@ -18,11 +20,17 @@ const DECISION_LABEL: Record<string, string> = {
   absent:  "נעדר",
 };
 
-const DECISION_CLASS: Record<string, string> = {
-  for:     "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  against: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  abstain: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  absent:  "bg-muted text-muted-foreground",
+// Border tint per decision for the clickable MK chips.
+const DECISION_CHIP: Record<string, string> = {
+  for:     "border-green-300 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/20",
+  against: "border-red-300 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20",
+  abstain: "border-amber-300 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-900/20",
+};
+
+const DECISION_DOT: Record<string, string> = {
+  for:     "bg-vote-for",
+  against: "bg-vote-against",
+  abstain: "bg-vote-abstain",
 };
 
 export function FactionVotePanel({ partyBreakdown, mkVotes = [], className }: FactionVotePanelProps) {
@@ -134,25 +142,56 @@ function FactionRow({
 
       {open && decidedMks.length > 0 && (
         <tr className="border-b border-border/50 bg-muted/20">
-          <td colSpan={hasMkData ? 6 : 5} className="px-3 py-2">
-            <div className="flex flex-wrap gap-1.5">
+          <td colSpan={hasMkData ? 6 : 5} className="px-3 py-3">
+            <div className="flex flex-col gap-3">
               {["for", "against", "abstain"].map((decision) => {
                 const group = decidedMks.filter((m) => m.decision === decision);
                 if (group.length === 0) return null;
                 return (
-                  <div key={decision} className="flex flex-wrap gap-1">
-                    {group.map((mk) => (
-                      <span
-                        key={mk.mk_individual_id}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                          DECISION_CLASS[decision]
-                        )}
-                      >
-                        <span className="text-[9px] opacity-60">{DECISION_LABEL[decision]}</span>
-                        {mk.mk_name}
+                  <div key={decision}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className={cn("inline-block h-2 w-2 rounded-full", DECISION_DOT[decision])} />
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        {DECISION_LABEL[decision]} · {group.length}
                       </span>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.map((mk, idx) => {
+                        const chipBody = (
+                          <>
+                            <MKAvatar
+                              name={mk.mk_name}
+                              photoUrl={mk.mk_individual_photo}
+                              seed={mk.mk_individual_id || idx}
+                              size={22}
+                            />
+                            <span className="text-[11px] font-medium text-foreground group-hover:text-primary">
+                              {mk.mk_name}
+                            </span>
+                          </>
+                        );
+                        const chipClass = cn(
+                          "group inline-flex items-center gap-1.5 rounded-full border bg-card ps-1 pe-2.5 py-0.5 transition-colors",
+                          DECISION_CHIP[decision]
+                        );
+                        // Only link when we resolved a real member id; otherwise
+                        // render a static chip so we never navigate to a 404.
+                        return mk.mk_individual_id > 0 ? (
+                          <Link
+                            key={`${mk.mk_individual_id}-${idx}`}
+                            href={`/members/${mk.mk_individual_id}`}
+                            className={cn(chipClass, "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50")}
+                            title={`${mk.mk_name} — לעמוד חבר/ת הכנסת`}
+                          >
+                            {chipBody}
+                          </Link>
+                        ) : (
+                          <span key={`u-${idx}`} className={chipClass} title={mk.mk_name}>
+                            {chipBody}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}

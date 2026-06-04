@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useQueryState } from "nuqs";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -23,6 +24,32 @@ const ACTIVE_OPTIONS = [
 ];
 
 export default function PartiesPage() {
+  // useQueryState (nuqs) relies on useSearchParams, which requires a Suspense
+  // boundary for Next.js static prerendering. Keep this wrapper hook-free.
+  return (
+    <Suspense fallback={<PartiesPageFallback />}>
+      <PartiesPageContent />
+    </Suspense>
+  );
+}
+
+function PartiesPageFallback() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Header />
+      <main className="flex-1 container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function PartiesPageContent() {
   const [knessetNum, setKnessetNum] = useQueryState("knesset_num", {
     defaultValue: "",
     shallow: false,

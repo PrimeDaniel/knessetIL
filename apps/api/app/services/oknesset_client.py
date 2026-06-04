@@ -149,6 +149,27 @@ async def fetch_v4(path: str, params: dict | None = None, timeout: float = 30.0)
     return response.json()
 
 
+async def fetch_v4_count(entity: str, filter_str: str | None = None, timeout: float = 30.0) -> int:
+    """
+    Cheap aggregate count from an OData v4 entity using ``$count`` with no
+    ``$expand`` — a single request that returns only the total, not the rows.
+
+    Used for homepage statistics (e.g. "bills that became law").  Never expand
+    related entities here: per-MK vote expansion is what makes OData slow.
+
+    Returns 0 on any error so the dashboard degrades gracefully.
+    """
+    params: dict = {"$count": "true", "$top": 1}
+    if filter_str:
+        params["$filter"] = filter_str
+    try:
+        data = await fetch_v4(entity, params=params, timeout=timeout)
+        return int(data.get("@odata.count") or 0)
+    except Exception as exc:
+        logger.error("fetch_v4_count(%s, filter=%r) failed: %s", entity, filter_str, exc)
+        return 0
+
+
 async def fetch_v4_all(path: str, params: dict | None = None, timeout: float = 30.0) -> list[dict]:
     """
     Like ``fetch_v4`` but follows ``@odata.nextLink`` until all pages are collected.

@@ -37,19 +37,25 @@ async def lifespan(app: FastAPI):
         "Starting KnessetIL API (env=%s, knesset=%d)", settings.app_env, settings.current_knesset
     )
 
-    scheduler.add_job(
-        run_sync,
-        "interval",
-        hours=settings.oknesset_sync_interval_hours,
-        id="oknesset_csv_sync",
-        replace_existing=True,
-    )
-    scheduler.start()
-    logger.info("CSV sync scheduler started (interval=%dh)", settings.oknesset_sync_interval_hours)
+    if settings.enable_sync_scheduler:
+        scheduler.add_job(
+            run_sync,
+            "interval",
+            hours=settings.oknesset_sync_interval_hours,
+            id="oknesset_csv_sync",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info(
+            "CSV sync scheduler started (interval=%dh)", settings.oknesset_sync_interval_hours
+        )
+    else:
+        logger.info("In-process sync scheduler disabled — an external scheduler owns the sync")
 
     yield
 
-    scheduler.shutdown(wait=False)
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
     await shutdown_http_client()
     logger.info("Scheduler and HTTP client shut down")
 

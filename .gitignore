@@ -12,7 +12,7 @@ build/
 .env
 .env.local
 .env.*.local
-.env.example
+# NOTE: .env.example is intentionally committed (it's the template).
 
 # Python
 __pycache__/
