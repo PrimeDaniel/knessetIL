@@ -58,6 +58,8 @@ import type {
   VoteListParams,
   MKListParams,
   PartyListParams,
+  ExplanationResponse,
+  ExplanationSubjectType,
 } from "@knesset/types";
 
 // ── Bills ─────────────────────────────────────────────────────────────────────
@@ -113,6 +115,14 @@ export const votesApi = {
 // ── Stats ─────────────────────────────────────────────────────────────────────
 export const statsApi = {
   dashboard: () => apiFetch<DashboardStats>("/api/v1/stats/dashboard"),
+};
+
+// ── AI explanations ─────────────────────────────────────────────────────────────
+export const explanationsApi = {
+  explain: (type: ExplanationSubjectType, id: number) =>
+    apiFetch<ExplanationResponse>(`/api/v1/explanations/${type}/${id}`, {
+      method: "POST",
+    }),
 };
 
 export { ApiError };
