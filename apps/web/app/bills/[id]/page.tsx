@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { Skeleton } from "@/components/shared/SkeletonCard";
+import { AiExplanation } from "@/components/shared/AiExplanation";
 import { useBill, useBillVotes } from "@/hooks/useBills";
 import { formatDateHe, cn } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -119,6 +120,9 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
                 )}
               </div>
             </div>
+
+            {/* AI explanation */}
+            <AiExplanation subjectType="bill" subjectId={billId} />
 
             {/* Initiators */}
             {(bill.initiators?.length ?? 0) > 0 && (
