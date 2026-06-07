@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useBill, useBillVotes } from "@/hooks/useBills";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
+import { AiExplanation } from "@/components/shared/AiExplanation";
 import { formatDateHe, cn } from "@/lib/utils";
 import type { BillDetail } from "@knesset/types";
 import {
@@ -84,6 +85,9 @@ function BillModalContent({ bill, billId }: { bill: BillDetail; billId: number }
 
   return (
     <div className="space-y-5">
+      {/* AI explanation */}
+      <AiExplanation subjectType="bill" subjectId={billId} />
+
       {/* Status + type badges */}
       <div className="flex flex-wrap gap-2">
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold", statusColor)}>

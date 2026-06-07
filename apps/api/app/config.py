@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     rate_limit_default: str = "100/minute"
     rate_limit_search: str = "30/minute"
 
+    # AI explanations (Claude). Generates short Hebrew explanations of bills/votes
+    # on demand and caches them in the ai_explanations table.
+    anthropic_api_key: str = ""
+    ai_explanation_model: str = "claude-haiku-4-5"
+    ai_explanations_enabled: bool = True
+
     # Current Knesset number — used for default filters and OData v4 routing
     current_knesset: int = 25
 

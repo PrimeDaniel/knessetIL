@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { CohesionGauge } from "@/components/charts/CohesionGauge";
+import { AiExplanation } from "@/components/shared/AiExplanation";
 import { useParty, usePartyCohesion } from "@/hooks/useParties";
 
 export default function PartyProfilePage({ params }: { params: { id: string } }) {
@@ -97,10 +98,15 @@ export default function PartyProfilePage({ params }: { params: { id: string } })
         </div>
 
         {cohesion?.total_votes_analyzed != null && cohesion.total_votes_analyzed > 0 && (
-          <p className="mb-6 -mt-2 text-xs text-muted-foreground">
+          <p className="mb-3 -mt-2 text-xs text-muted-foreground">
             מבוסס על {cohesion.total_votes_analyzed.toLocaleString("he-IL")} הצבעות שנותחו
           </p>
         )}
+
+        {/* What is faction cohesion? (static, pre-written) */}
+        <div className="mb-6">
+          <AiExplanation term="faction-cohesion" />
+        </div>
 
         {/* Knesset sessions */}
         {faction.knessets.length > 0 && (

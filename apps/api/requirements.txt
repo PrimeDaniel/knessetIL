@@ -18,6 +18,9 @@ apscheduler==3.10.4
 # Rate limiting
 slowapi==0.1.9
 
+# AI explanations (Claude)
+anthropic>=0.49,<1.0
+
 # Database (async PostgreSQL)
 sqlalchemy[asyncio]==2.0.30
 asyncpg==0.29.0

@@ -18,7 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.config import get_settings
-from app.routers import bills, members, parties, stats, votes
+from app.routers import bills, explanations, members, parties, stats, votes
 from app.tasks.sync import run_sync
 from app.services.oknesset_client import shutdown_http_client
 
@@ -73,7 +73,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],  # POST for on-demand AI explanations
     allow_headers=["*"],
 )
 
@@ -91,3 +91,4 @@ app.include_router(members.router, prefix="/api/v1/members", tags=["members"])
 app.include_router(parties.router, prefix="/api/v1/parties", tags=["parties"])
 app.include_router(votes.router, prefix="/api/v1/votes", tags=["votes"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
+app.include_router(explanations.router, prefix="/api/v1/explanations", tags=["explanations"])

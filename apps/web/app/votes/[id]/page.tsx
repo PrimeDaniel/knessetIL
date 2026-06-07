@@ -6,6 +6,8 @@ import { Footer } from "@/components/layout/Footer";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
 import { FactionVotePanel } from "@/components/votes/FactionVotePanel";
 import { Skeleton } from "@/components/shared/SkeletonCard";
+import { AiExplanation } from "@/components/shared/AiExplanation";
+import { voteTypeToTermKey } from "@/lib/static-explanations";
 import { useVoteDetail } from "@/hooks/useVotes";
 import { formatDateHe, cn } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -96,6 +98,12 @@ export default function VoteDetailPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
             </div>
+
+            {/* AI explanation — this specific vote, then (if known) what its type means */}
+            <AiExplanation subjectType="vote" subjectId={voteId} />
+            {voteTypeToTermKey(vote.vote_item_dscr) && (
+              <AiExplanation term={voteTypeToTermKey(vote.vote_item_dscr)!} />
+            )}
 
             {/* Overall breakdown */}
             <section className="rounded-xl border border-border bg-card shadow-card p-5">

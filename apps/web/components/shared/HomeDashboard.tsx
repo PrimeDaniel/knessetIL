@@ -10,6 +10,8 @@ import { StatCard } from "@/components/shared/StatCard";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { UpdatingNotice } from "@/components/shared/UpdatingNotice";
 import { VoteBreakdownBar } from "@/components/charts/VoteBreakdownBar";
+import { AiExplanation } from "@/components/shared/AiExplanation";
+import { voteTypeToTermKey } from "@/lib/static-explanations";
 import { formatDateHe } from "@/lib/utils";
 import type { RecentVote } from "@knesset/types";
 import {
@@ -386,8 +388,14 @@ function VoteModalContent({ vote, detail }: { vote: RecentVote; detail: ReturnTy
     vote.sess_item_dscr.trim() !== (vote.vote_item_dscr || "").trim() &&
     vote.sess_item_dscr.trim().length > 0;
 
+  const termKey = voteTypeToTermKey(vote.vote_item_dscr);
+
   return (
     <div className="space-y-5">
+      {/* AI explanation — this specific vote, then (if known) what its type means */}
+      <AiExplanation subjectType="vote" subjectId={vote.vote_id} />
+      {termKey && <AiExplanation term={termKey} />}
+
       {/* Result banner */}
       <div className={cn(
         "flex items-center gap-2.5 rounded-xl px-4 py-3",
