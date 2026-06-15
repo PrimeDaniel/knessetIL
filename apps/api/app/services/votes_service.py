@@ -202,11 +202,11 @@ async def get_vote_detail_v4(vote_id: int) -> dict | None:
     cache_key = f"votes:v4:detail:{vote_id}"
 
     async def factory() -> dict | None:
-        from app.services.members_service import get_member_name_map
+        from app.services.members_service import get_member_name_map, get_member_faction_map
 
         vote_row, faction_map, name_map = await asyncio.gather(
             fetch_v4_vote_with_results(vote_id),
-            _get_mk_faction_map(),
+            get_member_faction_map(),
             get_member_name_map(),
         )
         if not vote_row:

@@ -210,3 +210,51 @@ async def get_member_name_map() -> dict[str, dict]:
         return out
 
     return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST)
+
+
+async def get_member_faction_map() -> dict[str, dict]:
+    """
+    Build a "LastName_FirstName" -> {faction_id, faction_name} lookup
+    for all members using the local database.
+    """
+    cache_key = "members:faction_map"
+
+    async def factory() -> dict[str, dict]:
+        from app.database import AsyncSessionLocal
+        from datetime import date
+
+        async with AsyncSessionLocal() as db:
+            rows = (
+                await db.execute(
+                    select(
+                        Member.first_name,
+                        Member.last_name,
+                        MemberFaction.faction_id,
+                        MemberFaction.faction_name,
+                        MemberFaction.finish_date,
+                    )
+                    .join(MemberFaction, Member.mk_individual_id == MemberFaction.mk_individual_id)
+                )
+            ).all()
+
+        out: dict[str, dict] = {}
+        # Sort so that rows with finish_date IS None (still active) are processed last,
+        # overwriting older historical faction assignments.
+        # Python's sorted() is stable.
+        for first, last, faction_id, faction_name, finish_date in sorted(
+            rows,
+            key=lambda r: (r[4] is None, r[4] or date.min)
+        ):
+            last_s = (last or "").strip()
+            first_s = (first or "").strip()
+            if not last_s and not first_s:
+                continue
+            key = f"{last_s}_{first_s}"
+            if faction_id is not None:
+                out[key] = {
+                    "faction_id": faction_id,
+                    "faction_name": faction_name or "",
+                }
+        return out
+
+    return await cache.get_or_set(cache_key, factory, cache.TTL_MK_LIST)

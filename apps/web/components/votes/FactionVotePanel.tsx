@@ -99,7 +99,7 @@ function FactionRow({
         onClick={() => hasMkData && decidedMks.length > 0 && setOpen((v) => !v)}
       >
         <td className="px-3 py-2 font-medium text-foreground max-w-[140px] truncate">
-          {faction.faction_name || `סיעה ${faction.faction_id}`}
+          {faction.faction_id === 0 ? "סיעות שונות / אחר" : (faction.faction_name || `סיעה ${faction.faction_id}`)}
         </td>
         <td className="text-center px-2 py-2">
           <span className={cn("font-semibold tabular-nums", faction.for_count > 0 ? "text-vote-for" : "text-muted-foreground/40")}>
@@ -163,15 +163,22 @@ function FactionRow({
                               name={mk.mk_name}
                               photoUrl={mk.mk_individual_photo}
                               seed={mk.mk_individual_id || idx}
-                              size={22}
+                              size={24}
                             />
-                            <span className="text-[11px] font-medium text-foreground group-hover:text-primary">
-                              {mk.mk_name}
-                            </span>
+                            <div className="flex flex-col text-start leading-tight">
+                              <span className="text-[11px] font-semibold text-foreground group-hover:text-primary">
+                                {mk.mk_name}
+                              </span>
+                              {mk.faction_name && (
+                                <span className="text-[9.5px] text-muted-foreground font-normal">
+                                  {mk.faction_name}
+                                </span>
+                              )}
+                            </div>
                           </>
                         );
                         const chipClass = cn(
-                          "group inline-flex items-center gap-1.5 rounded-full border bg-card ps-1 pe-2.5 py-0.5 transition-colors",
+                          "group inline-flex items-center gap-2 rounded-lg border bg-card ps-1.5 pe-3 py-1 transition-colors",
                           DECISION_CHIP[decision]
                         );
                         // Only link when we resolved a real member id; otherwise
@@ -181,12 +188,12 @@ function FactionRow({
                             key={`${mk.mk_individual_id}-${idx}`}
                             href={`/members/${mk.mk_individual_id}`}
                             className={cn(chipClass, "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50")}
-                            title={`${mk.mk_name} — לעמוד חבר/ת הכנסת`}
+                            title={`${mk.mk_name} (${mk.faction_name || ''}) — לעמוד חבר/ת הכנסת`}
                           >
                             {chipBody}
                           </Link>
                         ) : (
-                          <span key={`u-${idx}`} className={chipClass} title={mk.mk_name}>
+                          <span key={`u-${idx}`} className={chipClass} title={`${mk.mk_name} (${mk.faction_name || ''})`}>
                             {chipBody}
                           </span>
                         );
