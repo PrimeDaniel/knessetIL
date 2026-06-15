@@ -189,6 +189,7 @@ async def get_or_set(
     key: str,
     factory: Callable[[], Awaitable[T]],
     ttl: int,
+    cache_ok: Callable[[T], bool] | None = None,
 ) -> T:
     """
     Cache-aside: read from memory, fall back to factory(), write result.
@@ -202,6 +203,13 @@ async def get_or_set(
         return entry.value
     logger.debug("Cache MISS: %s", key)
     result = await factory()
+    
+    if cache_ok is not None and not cache_ok(result):
+        return result
+    if result is None and cache_ok is None:
+        # Prevent caching None by default, as it usually represents a transient error
+        return result
+        
     _store[key] = _Entry(value=result, soft_expires_at=now + ttl)
     return result
 
