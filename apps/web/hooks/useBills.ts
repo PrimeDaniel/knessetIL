@@ -31,6 +31,8 @@ export function useBillVotes(billId: number) {
     queryKey: billKeys.votes(billId),
     queryFn: () => billsApi.getVotes(billId),
     enabled: !!billId,
+    // Do not retry on failure (e.g. 404 for bills without votes) to prevent UI loading lag
+    retry: false,
     // Vote breakdowns never change — keep in cache 24h
     staleTime: 24 * 60 * 60 * 1000,
   });
