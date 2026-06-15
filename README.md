@@ -1,85 +1,114 @@
 # 🏛️ KnessetTrack (מדד הכנסת)
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/Backend-Python_FastAPI-3776AB?logo=python&logoColor=white)
-![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?logo=next.js&logoColor=white)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Backend - Python FastAPI](https://img.shields.io/badge/Backend-Python_FastAPI-3776AB?logo=python&logoColor=white)](apps/api)
+[![Frontend - Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?logo=next.js&logoColor=white)](apps/web)
+[![Turborepo](https://img.shields.io/badge/Monorepo-Turborepo-EF4444?logo=turborepo&logoColor=white)](https://turbo.build/)
 
-![GCP](https://img.shields.io/badge/Deployment-GCP-4285F4?logo=google-cloud&logoColor=white)
+**KnessetTrack** is a state-of-the-art civic transparency web application designed to make the Israeli Parliament's (Knesset) legislative data clear, visual, and accessible. 
 
-**KnessetTrack** is a civic transparency web application designed to make the Israeli Parliament's (Knesset) legislative data accessible, visual, and easy to understand for the general public. 
+By aggregating and caching OData from the official Knesset databases, this platform tracks real-time bills, visualizes individual Member of Knesset (MK) voting breakdowns, and profiles party cohesion.
 
-By aggregating data from the [Open Knesset](https://oknesset.org/) project, this platform tracks bills, visualizes party voting records, and profiles individual Members of Knesset (MKs) to promote democratic transparency.
+---
+
+## 📸 Application Screenshots
+
+### Main Dashboard Interface
+![KnessetTrack Main Dashboard](docs/images/homepage_dashboard.png)
+
+---
 
 ## ✨ Features
 
-* 📊 **Dashboard Analytics:** A high-level overview of recent legislative activity, passed/rejected bills, and trending parliamentary topics.
-* 📜 **Bills Directory:** Search, filter, and track the status of current and past bills.
-* 🙋‍♂️ **Individual MK Profiles:** Deep dive into specific parliament members to see their overall voting record, rebellion rate, and recent activity.
-* 🏢 **Party Cohesion Tracker:** Visualizations showing how unified political parties are during key votes.
-* 📱 **Responsive & RTL Ready:** Fully optimized for mobile devices and natively designed for Right-to-Left (Hebrew) reading.
+* 📊 **Interactive Knesset Seating Layout**: A beautifully rendered semi-circle seating map representing the 120 Members of Knesset, color-coded by party alignment.
+* 🧠 **AI-Powered Parliamentary Explanations**: Contextual Hebrew explanations translating dry legal terms, committee clauses, and opposition objections into clear, citizen-friendly language.
+* ⚡ **Instant Fallback Strategies**: Optimized TanStack Query configurations preventing loading deadlocks on bills that haven't yet been voted on.
+* 🏢 **Party Cohesion & Voting Records**: Full party breakdowns showing who voted *For*, *Against*, or *Abstained*, down to individual MK records.
+* 📱 **Modern Glassmorphic Design**: A premium responsive dashboard optimized for Right-to-Left (RTL) reading with smooth micro-animations.
+
+---
+
+## 🎨 Interface Walkthrough
+
+| 🗳️ Vote Breakdown & AI Explanation | 📜 Bill Details & Voting Results | 🔍 Instant 404 Fallback |
+|:---:|:---:|:---:|
+| ![Vote details and AI explanation](docs/images/vote_details.png) | ![Bill details with voting results](docs/images/bill_details.png) | ![Bill details with no votes fallback](docs/images/bill_no_votes.png) |
+| Detailed party voting breakdown and contextual explanation of the Police Ordinance Amendment. | Official overview of Moroccan Jewish Heritage Day Bill, including initiators and votes. | Clean fallback message when querying a bill that is in-committee and has no votes. |
+
+---
 
 ## 🏗️ Architecture & Tech Stack
 
-The project uses a decoupled architecture to ensure high performance and prevent rate-limiting when fetching third-party civic data.
+The application is structured as a **monorepo** managed by Turborepo:
 
-* **Frontend:** Next.js (React), Tailwind CSS, Recharts (for data visualization).
-* **Backend:** Python with FastAPI (serving as an API Gateway and caching layer).
-* **Database/Cache:** PostgreSQL / Redis (for caching Open Knesset API responses).
-* **Infrastructure:** Deployable on serverless and cloud platforms (Vercel, Render, GCP).
+```
+├── apps
+│   ├── api          # FastAPI Python backend (caching, OData client, DB, background sync)
+│   └── web          # Next.js 14 React frontend (Tailwind CSS, TanStack Query)
+├── packages
+│   └── types        # Shared TypeScript type definitions
+```
+
+### Technical Stack
+* **Frontend**: Next.js 14, React, Tailwind CSS, TanStack React Query, Lucide Icons, Recharts.
+* **Backend**: Python 3.11, FastAPI, SQLAlchemy (Async), PostgreSQL, APScheduler (caching daemon).
+* **Build System**: Turborepo, PNPM Workspaces.
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-* Node.js (v18+)
-* Python (3.10+)
-* PostgreSQL and Redis (running locally or via cloud provider)
+* Node.js (v18.0.0+)
+* PNPM (`npm install -g pnpm`)
+* Python (v3.10+)
+* PostgreSQL running locally or via a cloud host
 
-### Installation
+### Installation & Environment Setup
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/PrimeDaniel/KnessetTrack.git](https://github.com/PrimeDaniel/KnessetTrack.git)
-    cd KnessetTrack
-    ```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/PrimeDaniel/KnessetTrack.git
+   cd KnessetTrack
+   ```
 
-2.  **Backend Setup (Python/FastAPI):**
-    ```bash
-    cd backend
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    pip install -r requirements.txt
-    uvicorn main:app --reload
-    ```
+2. **Configure Environment Variables:**
+   Create a `.env` file in `apps/api/` based on `apps/api/.env.example`:
+   ```properties
+   DATABASE_URL=postgresql+asyncpg://knesset:knesset@localhost:5432/knessetil
+   ENVIRONMENT=development
+   ```
 
-3.  **Frontend Setup (Next.js):**
-    ```bash
-    cd ../frontend
-    npm install
-    npm run dev
-    ```
+3. **Install Dependencies:**
+   ```bash
+   pnpm install
+   ```
 
+4. **Initialize Backend Virtualenv & Sync:**
+   ```bash
+   cd apps/api
+   python -m venv venv
+   # Activate virtualenv:
+   # Windows: .\venv\Scripts\activate
+   # Linux/macOS: source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-## 🔌 API & Data Source
+5. **Start Dev Servers:**
+   From the repository root, run:
+   ```bash
+   pnpm dev
+   ```
+   This will spin up both the FastAPI backend (`http://localhost:8000`) and the Next.js frontend (`http://localhost:3000`) concurrently.
 
-All legislative data is sourced via the [Open Knesset API](https://oknesset.org/api/v2/). KnessetTrack periodically fetches, transforms, and caches this data to serve it efficiently to end-users. Huge thanks to "Hasadna" (The Public Knowledge Workshop) for maintaining the core data infrastructure.
+---
 
-## 🤝 Contributing
+## 🔌 Data Sources
 
-Contributions, issues, and feature requests are welcome! 
-Feel free to check [issues page](https://github.com/PrimeDaniel/KnessetTrack/issues) if you want to contribute.
+All legislative records are sourced dynamically from the **Knesset OData v4 API**. KnessetTrack caches these records inside PostgreSQL and schedules updates via a background worker to ensure optimal query response times and compliance with Knesset service rate-limits.
 
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+---
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
-
-## 📧 Contact
-
-**Daniel** - [GitHub Profile](https://github.com/PrimeDaniel)
-
-Project Link: [https://github.com/PrimeDaniel/KnessetTrack](https://github.com/PrimeDaniel/KnessetTrack)
+Distributed under the MIT License. See `LICENSE` for details.
