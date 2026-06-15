@@ -42,7 +42,7 @@ async def explain(
     if subject_type not in _VALID_TYPES:
         raise HTTPException(status_code=404, detail="unknown subject type")
 
-    if not settings.ai_explanations_enabled or not settings.anthropic_api_key:
+    if not settings.ai_explanations_enabled:
         raise HTTPException(status_code=503, detail="AI explanations are not configured")
 
     try:

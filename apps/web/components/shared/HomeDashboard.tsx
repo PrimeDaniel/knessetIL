@@ -102,7 +102,7 @@ export function HomeDashboard() {
           <SectionHeader icon={BarChart3} title={`סטטיסטיקות — כנסת ${data.knesset_num}`} />
           {data.updating && <UpdatingNotice />}
         </div>
-        <div className="grid grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-3 gap-4 mt-4">
           {[
             { label: "הצבעות", value: data.total_votes_this_knesset, icon: Vote },
             { label: "הצעות חוק", value: data.total_bills, icon: FileText },
@@ -115,56 +115,59 @@ export function HomeDashboard() {
         </div>
       </section>
 
-      {/* Recent votes */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <SectionHeader icon={TrendingUp} title="הצבעות אחרונות" />
-          <Link href="/votes" className="text-sm text-primary hover:underline flex items-center gap-1">
-            <span>כל ההצבעות</span>
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-        <div className="flex flex-col gap-3">
-          {data.recent_votes.slice(0, 8).map((vote, i) => (
-            <div key={vote.vote_id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
-              <VoteCard vote={vote} onSelect={setSelectedVote} />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Recent bills */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <SectionHeader icon={FileText} title="הצעות חוק אחרונות" />
-          <Link href="/bills" className="text-sm text-primary hover:underline flex items-center gap-1">
-            <span>כל הצעות החוק</span>
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-        <div className="flex flex-col gap-2">
-          {data.recent_bills.slice(0, 6).map((bill, i) => (
-            <button
-              key={bill.bill_id}
-              type="button"
-              onClick={() => setSelectedBillId(bill.bill_id)}
-              className="group w-full text-start flex items-center gap-3 rounded-xl border border-border bg-card shadow-card hover:shadow-card-md hover:border-primary/20 hover:-translate-y-px transition-all p-4 animate-fade-up"
-              style={{ animationDelay: `${i * 40}ms` }}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                  {bill.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {bill.status_desc}
-                  {bill.publication_date && ` · ${formatDateHe(bill.publication_date)}`}
-                </p>
+      {/* Main Grid: Votes and Bills side-by-side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Recent votes */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <SectionHeader icon={TrendingUp} title="הצבעות אחרונות" />
+            <Link href="/votes" className="text-sm text-primary hover:underline flex items-center gap-1">
+              <span>כל ההצבעות</span>
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="flex flex-col gap-3">
+            {data.recent_votes.slice(0, 8).map((vote, i) => (
+              <div key={vote.vote_id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+                <VoteCard vote={vote} onSelect={setSelectedVote} />
               </div>
-              <ExternalLink className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/50 transition-colors shrink-0" />
-            </button>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+
+        {/* Recent bills */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <SectionHeader icon={FileText} title="הצעות חוק אחרונות" />
+            <Link href="/bills" className="text-sm text-primary hover:underline flex items-center gap-1">
+              <span>כל הצעות החוק</span>
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="flex flex-col gap-3">
+            {data.recent_bills.slice(0, 8).map((bill, i) => (
+              <button
+                key={bill.bill_id}
+                type="button"
+                onClick={() => setSelectedBillId(bill.bill_id)}
+                className="group w-full text-start flex items-center gap-3 rounded-xl border border-border bg-card shadow-card hover:shadow-card-md hover:border-primary/20 hover:-translate-y-px transition-all p-4 animate-fade-up"
+                style={{ animationDelay: `${i * 40}ms` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                    {bill.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {bill.status_desc}
+                    {bill.publication_date && ` · ${formatDateHe(bill.publication_date)}`}
+                  </p>
+                </div>
+                <ExternalLink className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/50 transition-colors shrink-0" />
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
 
       {selectedVote && (
         <VoteModal vote={selectedVote} onClose={() => setSelectedVote(null)} />
