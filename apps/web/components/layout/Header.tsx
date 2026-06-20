@@ -9,8 +9,7 @@ import { useState } from "react";
 
 const NAV_ITEMS = [
   { href: "/",        label: "ראשי" },
-  { href: "/votes",   label: "הצבעות" },
-  { href: "/bills",   label: "הצעות חוק" },
+  { href: "/bills",   label: "חקיקה והחלטות" },
   { href: "/members", label: "חברי כנסת" },
   { href: "/parties", label: "סיעות" },
 ] as const;

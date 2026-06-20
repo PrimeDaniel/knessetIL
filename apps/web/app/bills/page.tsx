@@ -52,6 +52,7 @@ function BillsPageContent() {
     search: search || undefined,
     status_id: statusId ? Number(statusId) : undefined,
     knesset_num: knessetNum ? Number(knessetNum) : undefined,
+    has_votes: true,
   });
 
   const handlePageChange = (p: number) => {
@@ -68,12 +69,12 @@ function BillsPageContent() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <FileText className="h-5 w-5 text-primary" />
-              <h1 className="text-2xl font-bold">הצעות חוק</h1>
+              <h1 className="text-2xl font-bold">חקיקה והחלטות</h1>
             </div>
             {data && (
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground">
-                  {data.pagination.total.toLocaleString("he-IL")} הצעות חוק
+                  {data.pagination.total.toLocaleString("he-IL")} חוקים
                 </p>
                 {data.updating && <UpdatingNotice />}
               </div>

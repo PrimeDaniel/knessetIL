@@ -121,10 +121,6 @@ export function HomeDashboard() {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <SectionHeader icon={TrendingUp} title="הצבעות אחרונות" />
-            <Link href="/votes" className="text-sm text-primary hover:underline flex items-center gap-1">
-              <span>כל ההצבעות</span>
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Link>
           </div>
           <div className="flex flex-col gap-3">
             {data.recent_votes.slice(0, 8).map((vote, i) => (

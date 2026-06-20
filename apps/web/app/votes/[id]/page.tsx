@@ -31,9 +31,9 @@ export default function VoteDetailPage({ params }: { params: { id: string } }) {
             <div>
               <p className="font-semibold">ההצבעה לא נמצאה</p>
               <p className="text-sm mt-1 opacity-80">ייתכן שהמזהה שגוי או שהנתונים טרם נטענו.</p>
-              <Link href="/votes" className="text-sm mt-3 inline-flex items-center gap-1 text-primary hover:underline">
+              <Link href="/bills" className="text-sm mt-3 inline-flex items-center gap-1 text-primary hover:underline">
                 <ChevronRight className="h-3.5 w-3.5" />
-                חזרה לרשימת ההצבעות
+                חזרה לרשימת החקיקה
               </Link>
             </div>
           </div>
@@ -51,9 +51,9 @@ export default function VoteDetailPage({ params }: { params: { id: string } }) {
       <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
         {/* Breadcrumb */}
         <nav className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Link href="/votes" className="hover:text-foreground transition-colors flex items-center gap-1">
+          <Link href="/bills" className="hover:text-foreground transition-colors flex items-center gap-1">
             <Vote className="h-3.5 w-3.5" />
-            הצבעות
+            חקיקה והחלטות
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
           {isLoading ? (

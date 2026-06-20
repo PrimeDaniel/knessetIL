@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -36,7 +36,7 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
   if (isNaN(billId)) notFound();
 
   const { data: bill, isLoading, isError } = useBill(billId);
-  const { data: voteDetail, isLoading: voteLoading } = useBillVotes(billId);
+  const { data: voteDetails, isLoading: voteLoading } = useBillVotes(billId);
 
   useEffect(() => {
     if (bill?.name) {
@@ -152,43 +152,58 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
             <section className="rounded-xl border border-border bg-card shadow-card p-5">
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">תוצאת הצבעה</h2>
               {voteLoading && <VoteCountingLoader />}
-              {!voteLoading && voteDetail && (
-                <div className="space-y-4">
-                  <div className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-4 py-3",
-                    voteDetail.is_accepted
-                      ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
-                      : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-                  )}>
-                    {voteDetail.is_accepted
-                      ? <CheckCircle2 className="h-5 w-5 shrink-0" />
-                      : <XCircle className="h-5 w-5 shrink-0" />
-                    }
-                    <span className="font-semibold text-sm">
-                      {voteDetail.is_accepted ? "ההצבעה עברה" : "ההצבעה נדחתה"}
-                    </span>
-                    {voteDetail.vote_date && (
-                      <span className="text-xs opacity-70 ms-auto">{formatDateHe(voteDetail.vote_date)}</span>
-                    )}
-                  </div>
-                  <VoteBreakdownBar
-                    totalFor={voteDetail.total_for}
-                    totalAgainst={voteDetail.total_against}
-                    totalAbstain={voteDetail.total_abstain}
-                  />
-                  {voteDetail.party_breakdown && voteDetail.party_breakdown.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">הצבעה לפי סיעה</p>
-                      <p className="text-[11px] text-muted-foreground mb-2">לחצו על סיעה כדי לראות את עמדת כל חבר כנסת</p>
-                      <FactionVotePanel
-                        partyBreakdown={voteDetail.party_breakdown}
-                        mkVotes={voteDetail.mk_votes}
-                      />
+              {!voteLoading && voteDetails && voteDetails.length > 0 && (
+                <div className="space-y-10 relative before:absolute before:inset-y-0 before:right-6 before:w-px before:bg-border/60">
+                  {voteDetails.map((voteDetail, index) => (
+                    <div key={voteDetail.id} className="relative pr-12">
+                      <div className="absolute right-4.5 top-1.5 w-3 h-3 rounded-full bg-primary/20 ring-4 ring-card z-10 before:absolute before:inset-1 before:rounded-full before:bg-primary" />
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground mb-1 leading-snug">
+                            {voteDetail.vote_item_dscr || bill.name}
+                          </h3>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {formatDateHe(voteDetail.vote_date)}
+                          </span>
+                        </div>
+
+                        <div className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-4 py-3",
+                          voteDetail.is_accepted
+                            ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                            : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                        )}>
+                          {voteDetail.is_accepted
+                            ? <CheckCircle2 className="h-5 w-5 shrink-0" />
+                            : <XCircle className="h-5 w-5 shrink-0" />
+                          }
+                          <span className="font-semibold text-sm">
+                            {voteDetail.is_accepted ? "ההצבעה עברה" : "ההצבעה נדחתה"}
+                          </span>
+                        </div>
+                        
+                        <VoteBreakdownBar
+                          totalFor={voteDetail.total_for}
+                          totalAgainst={voteDetail.total_against}
+                          totalAbstain={voteDetail.total_abstain}
+                        />
+                        
+                        {voteDetail.party_breakdown && voteDetail.party_breakdown.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">הצבעה לפי סיעה</p>
+                            <FactionVotePanel
+                              partyBreakdown={voteDetail.party_breakdown}
+                              mkVotes={voteDetail.mk_votes}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
-              {!voteLoading && !voteDetail && (
+              {!voteLoading && (!voteDetails || voteDetails.length === 0) && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   לא נמצאו נתוני הצבעה עבור הצעת חוק זו.
                 </p>
