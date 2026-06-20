@@ -175,7 +175,7 @@ function BillModalContent({ bill, billId }: { bill: BillDetail; billId: number }
           <div className="space-y-10 relative before:absolute before:inset-y-0 before:right-6 before:w-px before:bg-border/60">
             {voteDetails.map((voteDetail, index) => (
               <div key={voteDetail.id} className="relative pr-12">
-                <div className="absolute right-4.5 top-1.5 w-3 h-3 rounded-full bg-primary/20 ring-4 ring-card z-10 before:absolute before:inset-1 before:rounded-full before:bg-primary" />
+                <div className="absolute right-[18px] top-1.5 w-3 h-3 rounded-full bg-primary/20 ring-4 ring-card z-10 before:absolute before:inset-1 before:rounded-full before:bg-primary" />
                 
                 <div className="space-y-4">
                   <div>
