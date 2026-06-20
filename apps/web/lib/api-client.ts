@@ -4,7 +4,13 @@
  * and response typing.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== "undefined") return ""; // Client-side uses relative URL
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // Vercel SSR
+  return "http://localhost:3000"; // Local SSR fallback
+};
+const BASE_URL = getBaseUrl();
 
 class ApiError extends Error {
   constructor(
@@ -71,7 +77,7 @@ export const billsApi = {
     apiFetch<BillDetail>(`/api/v1/bills/${billId}`),
 
   getVotes: (billId: number) =>
-    apiFetch<VoteDetail>(`/api/v1/bills/${billId}/votes`),
+    apiFetch<VoteDetail[]>(`/api/v1/bills/${billId}/votes`),
 };
 
 // ── Members ───────────────────────────────────────────────────────────────────

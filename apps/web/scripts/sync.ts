@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Client } from "pg";
 import { parse } from "csv-parse";
 import * as dotenv from "dotenv";

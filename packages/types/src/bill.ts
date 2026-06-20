@@ -58,4 +58,5 @@ export interface BillListParams {
   initiator_id?: number; // Filter by MK who proposed the bill
   date_from?: string;    // publication_date from
   date_to?: string;      // publication_date to
+  has_votes?: boolean;
 }
