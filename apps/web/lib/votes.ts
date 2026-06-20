@@ -32,20 +32,58 @@ export async function getVoteDetail(vote_id: number) {
     const counts = { "for": 0, "against": 0, "abstain": 0, "absent": 0 };
     const results = row.VoteResults || [];
 
-    const { data: mems } = await supabase.from('members').select('mk_individual_id, first_name, last_name, photo_url');
+    const [page1, page2] = await Promise.all([
+      supabase.from('members').select('mk_individual_id, person_id, first_name, last_name, photo_url').range(0, 999),
+      supabase.from('members').select('mk_individual_id, person_id, first_name, last_name, photo_url').range(1000, 1999)
+    ]);
+    const mems = [...(page1.data || []), ...(page2.data || [])];
+    
+    const memberMap: Record<number, any> = {};
     const nameMap: Record<string, any> = {};
     if (mems) {
       for (const m of mems) {
+        if (m.person_id) {
+          memberMap[m.person_id] = m;
+        }
         const key = `${(m.last_name||'').trim()}_${(m.first_name||'').trim()}`;
         nameMap[key] = m;
       }
     }
 
-    const { data: facs } = await supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name').is('finish_date', null);
-    const mkFactionMap: Record<number, any> = {};
+    const [facs1, facs2, facs3, facs4, facs5] = await Promise.all([
+      supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name, start_date, finish_date').range(0, 999),
+      supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name, start_date, finish_date').range(1000, 1999),
+      supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name, start_date, finish_date').range(2000, 2999),
+      supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name, start_date, finish_date').range(3000, 3999),
+      supabase.from('member_factions').select('mk_individual_id, faction_id, faction_name, start_date, finish_date').range(4000, 4999)
+    ]);
+    const facs = [
+      ...(facs1.data || []),
+      ...(facs2.data || []),
+      ...(facs3.data || []),
+      ...(facs4.data || []),
+      ...(facs5.data || [])
+    ];
+    
+    const memberFactionsMap: Record<number, any[]> = {};
     if (facs) {
-      for (const f of facs) mkFactionMap[f.mk_individual_id] = f;
+      for (const f of facs) {
+        const mid = f.mk_individual_id;
+        if (!memberFactionsMap[mid]) memberFactionsMap[mid] = [];
+        memberFactionsMap[mid].push(f);
+      }
     }
+
+    const findFactionAtDate = (mkId: number, dateStr: string) => {
+      if (!mkId || !dateStr) return null;
+      const history = memberFactionsMap[mkId] || [];
+      const match = history.find(f => {
+        const start = f.start_date || "";
+        const finish = f.finish_date || "";
+        return start <= dateStr && (!finish || finish >= dateStr);
+      });
+      return match || history[0] || null;
+    };
 
     const mk_votes = [];
     const factionAccum: Record<number, any> = {};
@@ -57,9 +95,9 @@ export async function getVoteDetail(vote_id: number) {
       const last = (r.LastName || "").trim();
       const first = (r.FirstName || "").trim();
       const key = `${last}_${first}`;
-      const minfo = nameMap[key] || {};
-      const mkId = minfo.mk_individual_id || 0;
-      const factionInfo = mkFactionMap[mkId] || {};
+      const minfo = (r.MkId ? memberMap[r.MkId] : null) || nameMap[key] || {};
+      const mkId = minfo.mk_individual_id || r.MkId || 0;
+      const factionInfo = findFactionAtDate(mkId, vote_date) || {};
 
       mk_votes.push({
         vote_id,
