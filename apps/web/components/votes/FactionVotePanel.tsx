@@ -169,7 +169,7 @@ function FactionRow({
                               <span className="text-[11px] font-semibold text-foreground group-hover:text-primary">
                                 {mk.mk_name}
                               </span>
-                              {mk.faction_name && (
+                              {(faction.faction_id === 0 || faction.faction_id === null) && mk.faction_name && (
                                 <span className="text-[9.5px] text-muted-foreground font-normal">
                                   {mk.faction_name}
                                 </span>
